@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { DirectorDecisionPanel } from "@/components/admin/DirectorDecisionPanel";
+
+export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Validation Direction — ESCAE Hub" };

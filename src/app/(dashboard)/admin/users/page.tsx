@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/Badge";
 import { verifyStudentAction } from "@/lib/admin/student-actions";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = { title: "Gestion des utilisateurs — Admin" };
 
 const ROLE_LABELS: Record<string, string> = {

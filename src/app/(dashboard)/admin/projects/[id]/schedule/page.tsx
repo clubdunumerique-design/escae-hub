@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { SchedulePresentationForm } from "@/components/admin/SchedulePresentationForm";
+
+export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Planification Soutenance — ESCAE Hub" };

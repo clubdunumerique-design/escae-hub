@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { submitProjectAction } from "../actions";
 import { DocumentUploadForm } from "@/components/forms/DocumentUploadForm";

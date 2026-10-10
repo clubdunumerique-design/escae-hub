@@ -4,6 +4,8 @@ import Link from "next/link";
 import { TeamMemberForm } from "@/components/forms/TeamMemberForm";
 import { RemoveTeamMemberButton } from "@/components/forms/RemoveTeamMemberButton";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProjectTeamPage({
   params,
 }: {

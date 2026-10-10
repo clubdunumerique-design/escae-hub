@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loginAction } from "@/app/(auth)/actions";
 
@@ -42,9 +41,14 @@ export function LoginForm() {
         />
       </div>
       <div>
-        <label htmlFor="password" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/50">
-          Mot de passe
-        </label>
+        <div className="mb-2 flex items-center justify-between">
+          <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-white/50">
+            Mot de passe
+          </label>
+          <Link href="/auth/forgot-password" className="text-xs text-[#05F228]/70 hover:text-[#05F228] hover:underline transition-colors">
+            Mot de passe oublié ?
+          </Link>
+        </div>
         <input
           id="password" name="password" type="password" required autoComplete="current-password"
           placeholder="••••••••"

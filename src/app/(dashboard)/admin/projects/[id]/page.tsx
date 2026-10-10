@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { AdminActionPanel } from "@/components/admin/AdminActionPanel";
+
+export const dynamic = "force-dynamic";
 import { DownloadPdfButton } from "@/components/pdf/DownloadPdfButton";
 import type { ProjectStatus } from "@/types";
 

@@ -106,3 +106,45 @@ export async function verifyOtpAction(
   revalidatePath("/", "layout");
   return { success: true, data: undefined };
 }
+
+export async function forgotPasswordAction(
+  formData: FormData
+): Promise<ApiResponse<void>> {
+  const email = formData.get("email") as string;
+
+  if (!email) {
+    return { success: false, error: "L'adresse e-mail est requise." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
+  });
+
+  if (error) {
+    return { success: false, error: "Une erreur est survenue. Veuillez réessayer." };
+  }
+
+  // Réponse générique pour ne pas révéler si l'e-mail existe
+  return { success: true, data: undefined };
+}
+
+export async function resetPasswordAction(
+  formData: FormData
+): Promise<ApiResponse<void>> {
+  const password = formData.get("password") as string;
+
+  if (!password || password.length < 8) {
+    return { success: false, error: "Le mot de passe doit contenir au moins 8 caractères." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    return { success: false, error: "Impossible de réinitialiser le mot de passe. Le lien a peut-être expiré." };
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true, data: undefined };
+}
