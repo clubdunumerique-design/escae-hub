@@ -60,6 +60,7 @@ export async function registerAction(
       data: {
         full_name: parsed.data.fullName,
       },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
     },
   });
 
