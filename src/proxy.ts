@@ -5,7 +5,7 @@ import { createServerClient } from "@supabase/ssr";
  * Le middleware intercepte les requêtes pour rafraîchir la session Supabase
  * et protéger les routes qui nécessitent une authentification.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
