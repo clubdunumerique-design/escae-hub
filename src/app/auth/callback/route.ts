@@ -26,7 +26,7 @@ export async function GET(request: Request) {
               return { name: name.trim(), value: rest.join('=').trim() };
             });
           },
-          setAll(cookiesToSet) {
+          setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
             cookiesToSet.forEach(({ name, value, options }) =>
               supabaseResponse.cookies.set(name, value, options)
             );
