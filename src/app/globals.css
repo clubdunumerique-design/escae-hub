@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* ============================================================
+   ESCAE-BÉNIN Innovation Hub — Design Tokens
+   NOTE : Les couleurs ci-dessous sont des valeurs de travail
+   provisoires. Le logo et les couleurs officielles n'ont pas
+   encore été confirmés par l'administration.
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* 
+       Couleurs Officielles ESCAE-BÉNIN
+       Palette verte personnalisée 
+    */
+    --color-brand-50: #DCF2BB;
+    --color-brand-100: #C2F279;
+    --color-brand-300: #79F281;
+    --color-brand-400: #05F228;
+    --color-brand-500: #05F228; /* Base bright green */
+    --color-brand-600: #03A61C; /* Primary darker green */
+    --color-brand-800: #074015; /* SOMBRE: Dark green background */
+    --color-brand-900: #152614; /* SOMBRE: Very dark green */
+    --color-brand-950: #0D0D0D; /* SOMBRE: Black */
+
+    /* Typographie */
+    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+    /* Transitions */
+    --transition-default: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-[#0D0D0D] text-white;
+    min-height: 100vh;
+  }
+
+  /* Focus visible accessible */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+  }
+
+  /* Réduction des animations si préférence système */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
