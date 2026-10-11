@@ -5,21 +5,24 @@
  * NE PAS importer dans les composants client.
  */
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabasePublicKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabasePublicKey) {
     throw new Error(
-      "Les variables NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY sont requises.",
+      "Les variables NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (ou NEXT_PUBLIC_SUPABASE_ANON_KEY) sont requises.",
     );
   }
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(supabaseUrl, supabasePublicKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -39,7 +42,7 @@ export async function createSupabaseServerClient() {
 }
 
 /**
- * Client Supabase avec clé service_role — contourne les RLS.
+ * Client Supabase avec clé secrète serveur (sb_secret_... ou service_role) — contourne les RLS.
  *
  * ATTENTION : À utiliser UNIQUEMENT dans les opérations administratives
  * côté serveur après vérification explicite des permissions.
@@ -47,18 +50,18 @@ export async function createSupabaseServerClient() {
  */
 export function createSupabaseAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseSecretKey =
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !supabaseSecretKey) {
     throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY est requis pour le client admin. " +
+      "SUPABASE_SECRET_KEY (ou SUPABASE_SERVICE_ROLE_KEY) est requis pour le client admin. " +
         "Ne jamais exposer cette clé côté navigateur.",
     );
   }
 
-  // Import dynamique pour éviter le bundling côté client
-  const { createClient } = require("@supabase/supabase-js");
-  return createClient(supabaseUrl, serviceRoleKey, {
+  return createClient(supabaseUrl, supabaseSecretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { registerAction } from "@/app/(auth)/actions";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export function RegisterForm() {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -16,7 +14,6 @@ export function RegisterForm() {
     setError(null);
     setIsLoading(true);
     const formData = new FormData(event.currentTarget);
-    const email = formData.get("email") as string;
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
     if (password !== confirmPassword) {

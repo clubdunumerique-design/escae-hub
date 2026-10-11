@@ -6,14 +6,6 @@ import { z } from "zod";
 import type { ApiResponse } from "@/types";
 import { sendNotification } from "@/lib/notifications/send";
 
-type DirectorDecision = "accepted_for_presentation" | "rejected" | "under_re_examination";
-
-const ALLOWED_DECISIONS: DirectorDecision[] = [
-  "accepted_for_presentation",
-  "rejected",
-  "under_re_examination",
-];
-
 const decisionSchema = z.object({
   projectId: z.string().uuid(),
   decision: z.enum(["accepted_for_presentation", "rejected", "under_re_examination"]),

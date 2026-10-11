@@ -185,7 +185,6 @@ export default async function EvaluateProjectPage({
                 {allEvaluations.map((ev) => {
                   const evOwner = Array.isArray(ev.profiles) ? ev.profiles[0] : ev.profiles;
                   const evAvg = ((ev.innovation_score + ev.feasibility_score + ev.impact_score) / 3).toFixed(1);
-                  const isMe = false; // could compare evaluator_id if we had it
                   return (
                     <div key={ev.id} className="border-b border-white/5 pb-4">
                       <div className="mb-2 flex items-center justify-between">

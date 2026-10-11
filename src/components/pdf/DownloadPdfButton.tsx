@@ -11,7 +11,7 @@ interface DownloadPdfButtonProps {
   variant?: "outline" | "solid";
 }
 
-export function DownloadPdfButton({ project, teamMembers, className = "", variant = "solid" }: DownloadPdfButtonProps) {
+export function DownloadPdfButton({ project, teamMembers, className = "", variant: _variant = "solid" }: DownloadPdfButtonProps) {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function DownloadPdfButton({ project, teamMembers, className = "", varian
       fileName={`projet-${project.title.replace(/\s+/g, '-').toLowerCase()}.pdf`}
       className={className}
     >
-      {({ blob, url, loading, error }) =>
+      {({ loading }) =>
         loading ? (
           <span>Préparation du PDF...</span>
         ) : (

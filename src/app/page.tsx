@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { APP_CONFIG, FEATURE_FLAGS } from "@/config/app.config";
+import { APP_CONFIG } from "@/config/app.config";
 
 export const metadata: Metadata = {
   title: "ESCAE-BÉNIN Innovation Hub — Plateforme de projets étudiants",

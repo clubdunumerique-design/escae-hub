@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { saveDocumentMetadataAction, deleteDocumentAction } from "@/app/(dashboard)/projects/actions";
-import { Button } from "@/components/ui/Button";
+import { saveDocumentMetadataAction } from "@/app/(dashboard)/projects/actions";
+import { STORAGE_CONFIG } from "@/config/app.config";
 
 interface DocumentUploadFormProps {
   projectId: string;
@@ -19,8 +19,8 @@ export function DocumentUploadForm({ projectId, isDraft }: DocumentUploadFormPro
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validation basique (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
+    // Validation (max 10MB)
+    if (file.size > STORAGE_CONFIG.maxFileSizeBytes) {
       setError("Le fichier ne doit pas dépasser 10 Mo.");
       return;
     }
@@ -35,7 +35,7 @@ export function DocumentUploadForm({ projectId, isDraft }: DocumentUploadFormPro
       const storagePath = `${projectId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from("project_documents")
+        .from(STORAGE_CONFIG.projectDocumentsBucket)
         .upload(storagePath, file);
 
       if (uploadError) {
@@ -53,7 +53,7 @@ export function DocumentUploadForm({ projectId, isDraft }: DocumentUploadFormPro
 
       if (!response.success) {
         // Rollback: on tente de supprimer le fichier du storage si la BDD a échoué
-        await supabase.storage.from("project_documents").remove([storagePath]);
+        await supabase.storage.from(STORAGE_CONFIG.projectDocumentsBucket).remove([storagePath]);
         throw new Error(response.error ?? "Erreur lors de l'enregistrement.");
       }
 

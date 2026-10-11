@@ -23,9 +23,13 @@ export async function GET(request: NextRequest) {
     const redirectUrl = new URL(next, origin);
     const response = NextResponse.redirect(redirectUrl);
 
+    const supabasePublicKey =
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      supabasePublicKey,
       {
         cookies: {
           getAll() {

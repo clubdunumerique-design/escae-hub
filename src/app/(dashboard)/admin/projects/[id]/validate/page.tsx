@@ -90,10 +90,6 @@ export default async function ValidateProjectPage({
 
   const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
 
-  const STATUS_LABELS: Record<string, string> = {
-    director_validation: "En attente de validation direction",
-  };
-
   return (
     <div className="mx-auto max-w-6xl">
       {/* ── Breadcrumb ── */}

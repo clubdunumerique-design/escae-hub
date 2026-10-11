@@ -47,12 +47,6 @@ const STATUS_VARIANT: Record<string, "default" | "info" | "success" | "warning" 
   cancelled: "neutral",
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  student: "Étudiant",
-  admin: "Administrateur",
-  director: "Directeur",
-};
-
 export default async function AdminProjectDetailPage({
   params,
 }: {

@@ -4,7 +4,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loginSchema, registerSchema } from "@/lib/validations/auth";
 import type { ApiResponse } from "@/types";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 export async function loginAction(
   formData: FormData

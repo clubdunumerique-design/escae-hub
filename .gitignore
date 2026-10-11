@@ -30,12 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — .env.local et .env.*.local ne doivent jamais être commités
-.env*.local
-.env.development
-.env.staging
-.env.production
-# .env.example EST commité (pas de secrets)
+# env files — ignorer tous les fichiers .env sauf le gabarit .env.example
+.env
+.env.*
+!.env.example
+*.key
+*.cert
 
 # vercel
 .vercel

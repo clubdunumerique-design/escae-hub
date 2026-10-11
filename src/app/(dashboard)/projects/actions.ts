@@ -2,7 +2,7 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { projectSchema, teamMemberSchema } from "@/lib/validations/project";
-import type { ApiResponse, Project, ProjectSummary } from "@/types";
+import type { ApiResponse } from "@/types";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -329,7 +329,7 @@ export async function deleteDocumentAction(documentId: string, projectId: string
 
   // 2. Supprimer de Storage (Admin client ou user client si RLS le permet)
   // Comme RLS le permet pour le owner, on peut utiliser le client courant
-  const { error: storageError } = await supabase.storage
+  const { error: _storageError } = await supabase.storage
     .from("project_documents")
     .remove([doc.storage_path]);
 

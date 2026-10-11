@@ -27,7 +27,7 @@ interface MobileNavProps {
 export function DashboardHeader({
   userEmail,
   userName,
-  userRole,
+  userRole: _userRole,
   roleLabel,
   isAdmin,
   navItems,

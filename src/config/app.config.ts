@@ -19,11 +19,11 @@ export const APP_CONFIG = {
 // --- Stockage Supabase ---
 export const STORAGE_CONFIG = {
   // Bucket pour les documents de projets (privé)
-  projectDocumentsBucket: "project-documents",
+  projectDocumentsBucket: "project_documents",
   // Bucket pour les pitch decks (privé)
   pitchDecksBucket: "pitch-decks",
-  // Taille maximale de fichier autorisée : 20 Mo
-  maxFileSizeBytes: 20 * 1024 * 1024,
+  // Taille maximale de fichier autorisée : 10 Mo (harmonisé avec le formulaire)
+  maxFileSizeBytes: 10 * 1024 * 1024,
   // Types MIME acceptés pour les documents
   acceptedMimeTypes: [
     "application/pdf",

@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
 // Enregistrer des polices (optionnel, pour l'instant on utilise Helvetica natif pour la simplicité)
 // Font.register({ family: 'Inter', src: '...' });
