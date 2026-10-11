@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export default async function ProjectTeamPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -20,7 +21,7 @@ export default async function ProjectTeamPage({
   const { data: project } = await supabase
     .from("projects")
     .select("id, title, owner_id, status")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!project) notFound();

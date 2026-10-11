@@ -12,8 +12,9 @@ export const metadata: Metadata = { title: "Validation Direction — ESCAE Hub" 
 export default async function ValidateProjectPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -40,14 +41,14 @@ export default async function ValidateProjectPage({
       feasibility, impact, budget, status, created_at,
       profiles!owner_id (full_name, email, department, student_id)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!project) notFound();
 
   // Le projet doit être en attente de validation direction
   if (project.status !== "director_validation") {
-    redirect(`/admin/projects/${params.id}`);
+    redirect(`/admin/projects/${id}`);
   }
 
   // Récupérer toutes les évaluations avec le nom de l'évaluateur
@@ -57,14 +58,14 @@ export default async function ValidateProjectPage({
       id, innovation_score, feasibility_score, impact_score, comments, created_at,
       profiles!evaluator_id (full_name)
     `)
-    .eq("project_id", params.id)
+    .eq("project_id", id)
     .order("created_at", { ascending: true });
 
   // Historique de statuts
   const { data: statusHistory } = await supabase
     .from("status_history")
     .select("from_status, to_status, comment, created_at, profiles!changed_by (full_name)")
-    .eq("project_id", params.id)
+    .eq("project_id", id)
     .order("created_at", { ascending: false })
     .limit(5);
 

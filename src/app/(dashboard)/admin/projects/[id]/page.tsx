@@ -56,8 +56,9 @@ const ROLE_LABELS: Record<string, string> = {
 export default async function AdminProjectDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -83,7 +84,7 @@ export default async function AdminProjectDetailPage({
       id, title, description, objectives, problem, solution, feasibility, impact, budget, status, created_at, updated_at,
       profiles!owner_id (id, full_name, email, department, student_id, is_verified)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!project) notFound();
@@ -95,20 +96,20 @@ export default async function AdminProjectDetailPage({
       id, from_status, to_status, comment, created_at,
       profiles!changed_by (full_name)
     `)
-    .eq("project_id", params.id)
+    .eq("project_id", id)
     .order("created_at", { ascending: false });
 
   // Équipe du projet
   const { data: teamMembers } = await supabase
     .from("team_members")
     .select("id, name, role_in_project")
-    .eq("project_id", params.id);
+    .eq("project_id", id);
 
   // Documents du projet
   const { data: documents } = await supabase
     .from("project_documents")
     .select("id, name, storage_path, size_bytes")
-    .eq("project_id", params.id);
+    .eq("project_id", id);
 
   // Évaluations du projet (réservées au staff, jamais visibles par les étudiants)
   const { data: evaluations } = await supabase
@@ -117,7 +118,7 @@ export default async function AdminProjectDetailPage({
       id, innovation_score, feasibility_score, impact_score, comments, created_at,
       profiles!evaluator_id (full_name)
     `)
-    .eq("project_id", params.id);
+    .eq("project_id", id);
 
   const avgScore =
     evaluations && evaluations.length > 0
@@ -134,7 +135,7 @@ export default async function AdminProjectDetailPage({
   const { data: presentation } = await supabase
     .from("presentations")
     .select("scheduled_date, scheduled_time, room, notes")
-    .eq("project_id", params.id)
+    .eq("project_id", id)
     .single();
 
   // Normalisation du join Supabase (peut retourner tableau ou objet)

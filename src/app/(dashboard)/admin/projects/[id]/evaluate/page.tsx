@@ -24,8 +24,9 @@ const STATUS_VARIANT: Record<string, "default" | "info" | "success" | "warning" 
 export default async function EvaluateProjectPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -52,7 +53,7 @@ export default async function EvaluateProjectPage({
       feasibility, impact, budget, status,
       profiles!owner_id (full_name, email, department)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!project) notFound();
@@ -60,14 +61,14 @@ export default async function EvaluateProjectPage({
   // Vérifier que le projet est évaluable
   const evaluableStatuses = ["under_review", "jury_evaluation", "director_validation"];
   if (!evaluableStatuses.includes(project.status)) {
-    redirect(`/admin/projects/${params.id}`);
+    redirect(`/admin/projects/${id}`);
   }
 
   // Récupérer l'évaluation existante de cet évaluateur pour ce projet
   const { data: myEvaluation } = await supabase
     .from("evaluations")
     .select("innovation_score, feasibility_score, impact_score, comments, created_at")
-    .eq("project_id", params.id)
+    .eq("project_id", id)
     .eq("evaluator_id", user.id)
     .single();
 
@@ -78,7 +79,7 @@ export default async function EvaluateProjectPage({
       id, innovation_score, feasibility_score, impact_score, comments, created_at,
       profiles!evaluator_id (full_name)
     `)
-    .eq("project_id", params.id)
+    .eq("project_id", id)
     .order("created_at", { ascending: true });
 
   // Calcul de la moyenne globale de toutes les évaluations

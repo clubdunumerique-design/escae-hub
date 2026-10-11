@@ -12,8 +12,9 @@ export const metadata: Metadata = { title: "Planification Soutenance — ESCAE H
 export default async function ScheduleProjectPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -39,7 +40,7 @@ export default async function ScheduleProjectPage({
       id, title, status,
       profiles!owner_id (full_name)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!project) notFound();
@@ -47,14 +48,14 @@ export default async function ScheduleProjectPage({
   // On peut planifier seulement si accepté ou déjà en cours de planification
   const validStatuses = ["accepted_for_presentation", "scheduling"];
   if (!validStatuses.includes(project.status)) {
-    redirect(`/admin/projects/${params.id}`);
+    redirect(`/admin/projects/${id}`);
   }
 
   // Récupérer l'éventuelle planification existante
   const { data: existingSchedule } = await supabase
     .from("presentations")
     .select("scheduled_date, scheduled_time, room, notes")
-    .eq("project_id", params.id)
+    .eq("project_id", id)
     .single();
 
   const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
