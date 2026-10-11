@@ -25,7 +25,10 @@ export default async function ProjectDetailsPage({
   // RLS assure que seul le propriétaire ou le staff peut voir ce projet
   const { data: project } = await supabase
     .from("projects")
-    .select("*")
+    .select(`
+      *,
+      profiles!owner_id (id, full_name, email, department, student_id, is_verified)
+    `)
     .eq("id", id)
     .single();
 
