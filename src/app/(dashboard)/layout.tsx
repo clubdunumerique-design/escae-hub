@@ -75,9 +75,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     student: "Étudiant",
     admin: "Administrateur",
     director: "Directeur",
-    reviewer: "Évaluateur",
-    verifier: "Vérificateur",
-    scheduler: "Planificateur",
   };
 
   return (

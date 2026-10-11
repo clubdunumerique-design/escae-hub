@@ -10,20 +10,17 @@ describe("Types métier", () => {
   describe("UserRole", () => {
     const EXPECTED_ROLES: UserRole[] = [
       "student",
-      "verifier",
       "admin",
-      "reviewer",
-      "scheduler",
       "director",
     ];
 
-    it("contient exactement les 6 rôles définis", () => {
+    it("contient exactement les 3 rôles définis", () => {
       // Vérification que toutes les valeurs attendues sont assignables
       // (échoue à la compilation TypeScript si un rôle est supprimé)
       EXPECTED_ROLES.forEach((role) => {
         expect(typeof role).toBe("string");
       });
-      expect(EXPECTED_ROLES).toHaveLength(6);
+      expect(EXPECTED_ROLES).toHaveLength(3);
     });
   });
 

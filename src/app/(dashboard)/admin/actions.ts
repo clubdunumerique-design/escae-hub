@@ -23,16 +23,18 @@ const ROLE_ALLOWED_TARGET_STATUSES: Record<string, ProjectStatus[]> = {
     "rejected",
     "cancelled",
   ],
-  verifier: ["admin_review", "corrections_requested", "under_review"],
   director: [
+    "admin_review",
+    "under_review",
+    "jury_evaluation",
     "accepted_for_presentation",
+    "scheduling",
+    "presentation_done",
     "director_validation",
     "approved",
     "rejected",
     "final_decision",
   ],
-  reviewer: ["jury_evaluation", "director_validation"],
-  scheduler: ["scheduling", "presentation_done", "final_decision"],
 };
 
 /**

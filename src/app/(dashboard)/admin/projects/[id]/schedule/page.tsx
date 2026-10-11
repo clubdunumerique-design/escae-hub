@@ -28,7 +28,7 @@ export default async function ScheduleProjectPage({
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["scheduler", "admin"].includes(profile.role)) {
+  if (!profile || !["admin", "director"].includes(profile.role)) {
     redirect("/dashboard");
   }
 

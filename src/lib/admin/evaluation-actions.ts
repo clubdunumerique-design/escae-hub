@@ -15,7 +15,7 @@ const evaluationSchema = z.object({
 
 /**
  * Soumet ou met à jour l'évaluation d'un jury pour un projet.
- * Réservé aux rôles "reviewer" et "admin".
+ * Réservé aux rôles "admin" et "director".
  * Les étudiants ne peuvent jamais accéder à leurs propres évaluations.
  */
 export async function submitEvaluationAction(
@@ -37,7 +37,7 @@ export async function submitEvaluationAction(
     .eq("id", user.id)
     .single();
 
-  if (!evaluator || !["reviewer", "admin"].includes(evaluator.role)) {
+  if (!evaluator || !["admin", "director"].includes(evaluator.role)) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
   }
 

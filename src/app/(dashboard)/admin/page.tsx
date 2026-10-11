@@ -43,7 +43,7 @@ export default async function AdminPage() {
     .eq("id", user.id)
     .single();
 
-  const isAdmin = profile?.role === "admin" || profile?.role === "director" || profile?.role === "verifier";
+  const isAdmin = profile?.role === "admin" || profile?.role === "director";
   if (!isAdmin) redirect("/dashboard");
 
   // Récupération de tous les projets avec le nom du propriétaire

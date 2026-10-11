@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -6,7 +6,7 @@ import type { ApiResponse } from "@/types";
 
 /**
  * Verifie ou de-verifie un compte etudiant.
- * Reserve aux roles : admin, verifier, director.
+ * Reserve aux roles : admin, director.
  * Utilise le client admin (service_role) pour contourner les RLS
  * apres verification du role cote serveur.
  */
@@ -31,7 +31,7 @@ export async function verifyStudentAction(
     .eq("id", user.id)
     .single();
 
-  const allowedRoles = ["admin", "verifier", "director"];
+  const allowedRoles = ["admin", "director"];
   if (!callerProfile || !allowedRoles.includes(callerProfile.role)) {
     return {
       success: false,

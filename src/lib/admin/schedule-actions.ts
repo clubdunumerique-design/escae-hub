@@ -16,7 +16,7 @@ const scheduleSchema = z.object({
 
 /**
  * Planifie la présentation (soutenance) pour un projet accepté.
- * Réservé aux rôles "scheduler" et "admin".
+ * Réservé aux rôles "admin" et "director".
  */
 export async function schedulePresentationAction(
   formData: FormData
@@ -31,13 +31,13 @@ export async function schedulePresentationAction(
   }
 
   // Vérification du rôle côté serveur
-  const { data: scheduler } = await supabase
+  const { data: staff } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
 
-  if (!scheduler || !["scheduler", "admin"].includes(scheduler.role)) {
+  if (!staff || !["admin", "director"].includes(staff.role)) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
   }
 

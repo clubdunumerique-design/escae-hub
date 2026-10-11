@@ -6,10 +6,7 @@
  */
 export type UserRole =
   | "student"    // Étudiant soumettant des projets
-  | "verifier"   // Vérificateur administratif (inscription étudiante)
   | "admin"      // Administrateur de la plateforme
-  | "reviewer"   // Membre du jury d'évaluation
-  | "scheduler"  // Responsable de la programmation des présentations
   | "director";  // Directeur — validation finale
 
 /**

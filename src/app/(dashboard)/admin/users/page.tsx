@@ -10,19 +10,13 @@ export const metadata: Metadata = { title: "Gestion des utilisateurs — Admin" 
 
 const ROLE_LABELS: Record<string, string> = {
   student: "Étudiant",
-  verifier: "Vérificateur",
   admin: "Administrateur",
-  reviewer: "Évaluateur",
-  scheduler: "Planificateur",
   director: "Directeur",
 };
 
 const ROLE_VARIANT: Record<string, "default" | "info" | "success" | "warning" | "danger" | "neutral"> = {
   student: "neutral",
-  verifier: "info",
   admin: "warning",
-  reviewer: "info",
-  scheduler: "info",
   director: "success",
 };
 
@@ -33,14 +27,14 @@ export default async function AdminUsersPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // Vérification du rôle — seuls admin, verifier et director ont accès
+  // Vérification du rôle — seuls admin et director ont accès
   const { data: callerProfile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
 
-  const canAccess = ["admin", "verifier", "director"].includes(callerProfile?.role ?? "");
+  const canAccess = ["admin", "director"].includes(callerProfile?.role ?? "");
   if (!canAccess) redirect("/dashboard");
 
   // Récupération de tous les profils
@@ -121,7 +115,7 @@ export default async function AdminUsersPage() {
               {profiles && profiles.length > 0 ? (
                 profiles.map((profile) => {
                   const isStudent = profile.role === "student";
-                  const canVerify = callerProfile?.role !== "reviewer" && callerProfile?.role !== "scheduler";
+                  const canVerify = ["admin", "director"].includes(callerProfile?.role ?? "");
 
                   // Server Action liée pour ce profil spécifique
                   const verifyAction = async () => {

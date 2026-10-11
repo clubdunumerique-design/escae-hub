@@ -49,10 +49,7 @@ const STATUS_VARIANT: Record<string, "default" | "info" | "success" | "warning" 
 
 const ROLE_LABELS: Record<string, string> = {
   student: "Étudiant",
-  verifier: "Vérificateur",
   admin: "Administrateur",
-  reviewer: "Évaluateur",
-  scheduler: "Planificateur",
   director: "Directeur",
 };
 
@@ -74,7 +71,7 @@ export default async function AdminProjectDetailPage({
     .eq("id", user.id)
     .single();
 
-  const staffRoles = ["admin", "verifier", "director", "reviewer", "scheduler"];
+  const staffRoles = ["admin", "director"];
   if (!callerProfile || !staffRoles.includes(callerProfile.role)) {
     redirect("/dashboard");
   }
@@ -179,7 +176,7 @@ export default async function AdminProjectDetailPage({
             teamMembers={teamMembers || []}
             className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white/60 transition-all hover:border-white/30 hover:text-white"
           />
-          {["reviewer", "admin"].includes(callerProfile.role) &&
+          {["admin", "director"].includes(callerProfile.role) &&
             ["under_review", "jury_evaluation", "director_validation"].includes(project.status) && (
             <Link
               href={`/admin/projects/${project.id}/evaluate`}
@@ -197,7 +194,7 @@ export default async function AdminProjectDetailPage({
               ⚖ Rendre la décision
             </Link>
           )}
-          {["scheduler", "admin"].includes(callerProfile.role) &&
+          {["admin", "director"].includes(callerProfile.role) &&
             ["accepted_for_presentation", "scheduling"].includes(project.status) && (
             <Link
               href={`/admin/projects/${project.id}/schedule`}
@@ -551,7 +548,7 @@ export default async function AdminProjectDetailPage({
                     );
                   })}
                 </div>
-                {["reviewer", "admin"].includes(callerProfile.role) && (
+                {["admin", "director"].includes(callerProfile.role) && (
                   <Link
                     href={`/admin/projects/${project.id}/evaluate`}
                     className="mt-4 block rounded-lg border border-[#03A61C]/40 px-4 py-2 text-center text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/20"

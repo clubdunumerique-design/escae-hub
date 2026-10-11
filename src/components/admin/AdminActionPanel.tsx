@@ -18,17 +18,18 @@ interface ActionDef {
  */
 function getActions(status: ProjectStatus, role: string): ActionDef[] {
   const actions: ActionDef[] = [];
+  const isStaff = ["admin", "director"].includes(role);
 
-  if (status === "submitted" && ["admin", "verifier"].includes(role)) {
+  if (status === "submitted" && isStaff) {
     actions.push({ label: "Prendre en charge", newStatus: "admin_review", variant: "primary" });
   }
 
-  if (status === "admin_review" && ["admin", "verifier"].includes(role)) {
+  if (status === "admin_review" && isStaff) {
     actions.push({ label: "Demander des corrections", newStatus: "corrections_requested", variant: "warning" });
     actions.push({ label: "Transmettre au jury", newStatus: "under_review", variant: "success" });
   }
 
-  if (["submitted", "admin_review"].includes(status) && role === "admin") {
+  if (["submitted", "admin_review"].includes(status) && isStaff) {
     actions.push({
       label: "Rejeter le projet",
       newStatus: "rejected",
@@ -37,19 +38,19 @@ function getActions(status: ProjectStatus, role: string): ActionDef[] {
     });
   }
 
-  if (status === "corrections_requested" && role === "admin") {
+  if (status === "corrections_requested" && isStaff) {
     actions.push({ label: "Reprendre la vérification", newStatus: "admin_review", variant: "primary" });
   }
 
-  if (status === "under_review" && role === "reviewer") {
+  if (status === "under_review" && isStaff) {
     actions.push({ label: "Démarrer l'évaluation jury", newStatus: "jury_evaluation", variant: "primary" });
   }
 
-  if (status === "jury_evaluation" && role === "reviewer") {
+  if (status === "jury_evaluation" && isStaff) {
     actions.push({ label: "Soumettre à la direction", newStatus: "director_validation", variant: "success" });
   }
 
-  if (status === "director_validation" && role === "director") {
+  if (status === "director_validation" && isStaff) {
     actions.push({ label: "Accepter pour présentation", newStatus: "accepted_for_presentation", variant: "success" });
     actions.push({
       label: "Rejeter",
@@ -59,15 +60,15 @@ function getActions(status: ProjectStatus, role: string): ActionDef[] {
     });
   }
 
-  if (status === "accepted_for_presentation" && role === "scheduler") {
+  if (status === "accepted_for_presentation" && isStaff) {
     actions.push({ label: "Planifier la présentation", newStatus: "scheduling", variant: "primary" });
   }
 
-  if (status === "scheduling" && role === "scheduler") {
+  if (status === "scheduling" && isStaff) {
     actions.push({ label: "Marquer comme présenté", newStatus: "presentation_done", variant: "success" });
   }
 
-  if (status === "presentation_done" && ["admin", "director"].includes(role)) {
+  if (status === "presentation_done" && isStaff) {
     actions.push({ label: "Approuver", newStatus: "approved", variant: "success" });
     actions.push({
       label: "Rejeter",

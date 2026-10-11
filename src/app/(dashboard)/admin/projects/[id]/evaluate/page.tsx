@@ -33,14 +33,14 @@ export default async function EvaluateProjectPage({
 
   if (!user) redirect("/auth/login");
 
-  // Vérification rôle — seuls reviewer et admin
+  // Vérification rôle — seuls admin et director
   const { data: evaluator } = await supabase
     .from("profiles")
     .select("role, full_name")
     .eq("id", user.id)
     .single();
 
-  if (!evaluator || !["reviewer", "admin"].includes(evaluator.role)) {
+  if (!evaluator || !["admin", "director"].includes(evaluator.role)) {
     redirect("/dashboard");
   }
 
