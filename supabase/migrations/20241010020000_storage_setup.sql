@@ -6,8 +6,8 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('project_documents', 'project_documents', false)
 ON CONFLICT (id) DO NOTHING;
 
--- 2. Activer RLS sur les objets (au cas ou ce n'est pas deja fait)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- 2. RLS est activé par défaut sur storage.objects par Supabase
+-- (ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; -- géré par Supabase)
 
 -- 3. Politiques de securite (RLS) pour storage.objects
 

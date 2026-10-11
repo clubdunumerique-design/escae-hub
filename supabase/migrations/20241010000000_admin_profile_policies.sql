@@ -9,7 +9,7 @@
 
 -- Politique permettant aux roles admin/verifier/director de mettre a jour
 -- les profils (notamment le champ is_verified)
-CREATE POLICY ""Le personnel autorise met a jour les profils""
+CREATE POLICY "Le personnel autorise met a jour les profils"
 ON public.profiles FOR UPDATE USING (
   EXISTS (
     SELECT 1 FROM public.profiles
@@ -21,4 +21,5 @@ ON public.profiles FOR UPDATE USING (
 -- ==============================================================================
 -- DOWN (pour annuler cette migration)
 -- ==============================================================================
--- DROP POLICY IF EXISTS ""Le personnel autorise met a jour les profils"" ON public.profiles;
+-- DROP POLICY IF EXISTS "Le personnel autorise met a jour les profils" ON public.profiles;
+

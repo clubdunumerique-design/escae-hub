@@ -69,7 +69,8 @@ export async function createProjectAction(
     .single();
 
   if (error || !data) {
-    return { success: false, error: "Erreur lors de la création du projet." };
+    console.error("createProjectAction error:", error);
+    return { success: false, error: error?.message || "Erreur lors de la création du projet." };
   }
 
   revalidatePath("/dashboard");
