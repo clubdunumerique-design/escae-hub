@@ -24,6 +24,8 @@ export const metadata: Metadata = {
   // une fois le logo et les couleurs officielles confirmés
 };
 
+import { AuthHashListener } from "@/components/auth/AuthHashListener";
+
 export default function RootLayout({
   children,
 }: {
@@ -31,7 +33,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" className={inter.variable}>
-      <body>{children}</body>
+      <body>
+        <AuthHashListener />
+        {children}
+      </body>
     </html>
   );
 }

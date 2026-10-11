@@ -6,6 +6,21 @@ import { createServerClient } from "@supabase/ssr";
  * et protéger les routes qui nécessitent une authentification.
  */
 export async function proxy(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl;
+
+  // ── Interception des tokens Supabase arrivant sur la mauvaise page ──
+  // Supabase ajoute ?code= (ou ?token_hash=) à la "Site URL" configurée dans
+  // le dashboard, qui peut pointer vers "/" au lieu de "/auth/callback".
+  // On détecte ce cas et on redirige immédiatement vers la route dédiée.
+  const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  if ((code || tokenHash) && pathname !== "/auth/callback") {
+    const callbackUrl = request.nextUrl.clone();
+    callbackUrl.pathname = "/auth/callback";
+    // Conserver tous les query params (code, token_hash, type, next…)
+    return NextResponse.redirect(callbackUrl);
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -36,7 +51,10 @@ export async function proxy(request: NextRequest) {
   // IMPORTANT: getUser() valide le token JWT (plus sûr que getSession)
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/auth");
+  const isGuestOnlyRoute =
+    request.nextUrl.pathname === "/auth/login" ||
+    request.nextUrl.pathname === "/auth/register" ||
+    request.nextUrl.pathname === "/auth/forgot-password";
   const isProtectedRoute =
     request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/projects") ||
@@ -49,7 +67,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (isAuthRoute && user) {
+  if (isGuestOnlyRoute && user) {
     // Redirection vers le tableau de bord si déjà authentifié
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
