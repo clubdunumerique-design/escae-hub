@@ -96,24 +96,29 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-5">
         {[
           { label: "Total", value: stats.total, color: "text-white" },
           { label: "Brouillons", value: stats.drafts, color: "text-white/60" },
           { label: "En Évaluation", value: stats.in_progress, color: "text-sky-400" },
           { label: "Acceptés", value: stats.accepted, color: "text-[#05F228]" },
           { label: "Refusés", value: stats.rejected, color: "text-red-400" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-white/10 bg-white/5 p-4 text-center transition-all hover:bg-white/10 hover:shadow-lg hover:border-white/20">
-            <div className={`text-3xl font-extrabold ${s.color}`}>{s.value}</div>
-            <div className="mt-1 text-[10px] uppercase tracking-widest text-white/40">{s.label}</div>
+        ].map((s, idx) => (
+          <div
+            key={s.label}
+            className={`rounded-xl border border-white/10 bg-white/5 p-3.5 sm:p-4 text-center transition-all hover:bg-white/10 hover:shadow-lg hover:border-white/20 ${
+              idx === 4 ? "col-span-2 md:col-span-1" : ""
+            }`}
+          >
+            <div className={`text-2xl sm:text-3xl font-extrabold ${s.color}`}>{s.value}</div>
+            <div className="mt-1 text-[10px] uppercase tracking-wider text-white/40">{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Liste des projets */}
       <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3.5 sm:px-6 sm:py-4">
           <h2 className="font-semibold text-white">Mes projets</h2>
           <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs text-white/50">{stats.total}</span>
         </div>
@@ -121,14 +126,17 @@ export default async function DashboardPage() {
         {projects && projects.length > 0 ? (
           <div className="divide-y divide-white/5">
             {projects.map((project) => (
-              <div key={project.id} className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-white/5">
+              <div
+                key={project.id}
+                className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4 transition-colors hover:bg-white/5"
+              >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-white">{project.title}</p>
+                  <p className="truncate font-semibold text-white text-sm sm:text-base">{project.title}</p>
                   <p className="mt-0.5 text-xs text-white/30">
                     Modifié le {new Date(project.updated_at).toLocaleDateString("fr-FR")}
                   </p>
                 </div>
-                <div className="ml-4 flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
                   <Badge variant={STATUS_VARIANT[project.status] ?? "neutral"}>
                     {STATUS_LABELS[project.status] ?? project.status}
                   </Badge>

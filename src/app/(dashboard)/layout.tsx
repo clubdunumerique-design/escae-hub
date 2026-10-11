@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/actions";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { DashboardHeader } from "@/components/layout/DashboardHeader";
 
 export const metadata: Metadata = {
   title: "Tableau de bord — ESCAE Innovation Hub",
@@ -71,19 +71,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .limit(50);
 
   const isAdmin = profile?.role === "admin" || profile?.role === "director";
-  const roleLabel: Record<string, string> = {
+  const roleLabels: Record<string, string> = {
     student: "Étudiant",
     admin: "Administrateur",
     director: "Directeur",
   };
+  const currentRoleLabel = roleLabels[profile?.role ?? "student"] ?? profile?.role ?? "Étudiant";
 
   return (
     <div className="flex min-h-screen bg-[#0D0D0D] text-white">
-      {/* ── SIDEBAR ── */}
-      <aside className="flex w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D]">
+      {/* ── SIDEBAR DESKTOP (caché sur mobile, affiché à partir de md) ── */}
+      <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D] md:flex">
         {/* Logo */}
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
-          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+          <Link href="/dashboard" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <Image src="/logo-escae.png" alt="ESCAE" width={90} height={36} className="h-9 w-auto object-contain" />
           </Link>
         </div>
@@ -99,7 +100,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 {profile?.full_name || "Utilisateur"}
               </p>
               <p className="truncate text-xs text-[#79F281]">
-                {roleLabel[profile?.role ?? "student"] ?? profile?.role}
+                {currentRoleLabel}
               </p>
             </div>
           </div>
@@ -158,20 +159,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </aside>
 
       {/* ── CONTENU PRINCIPAL ── */}
-      <div className="flex flex-1 flex-col">
-        {/* Header interne */}
-        <header className="flex items-center justify-between border-b border-white/10 bg-[#0D0D0D]/80 px-8 py-4 backdrop-blur-sm">
-          <div className="flex items-center gap-2 text-xs text-white/30">
-            <Image src="/logo-hub.png" alt="Hub" width={20} height={20} className="h-5 w-auto opacity-50" />
-            <span>INNOVATION HUB</span>
-          </div>
-          <div className="h-px flex-1 mx-6 bg-white/5" />
-          <div className="flex items-center gap-4">
-            <NotificationBell initialNotifications={notifications || []} />
-            <p className="text-xs text-white/30">{user.email}</p>
-          </div>
-        </header>
-        <main className="flex-1 overflow-y-auto p-8">
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Header responsive avec menu burger et notifications */}
+        <DashboardHeader
+          userEmail={user.email || ""}
+          userName={profile?.full_name || ""}
+          userRole={profile?.role || "student"}
+          roleLabel={currentRoleLabel}
+          isAdmin={isAdmin}
+          navItems={NAV_ITEMS}
+          adminNavItems={ADMIN_NAV_ITEMS}
+          notifications={notifications || []}
+        />
+
+        {/* Main scrollable avec padding responsive (px-4 sur mobile, px-8 sur desktop) */}
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:p-8">
           {children}
         </main>
       </div>

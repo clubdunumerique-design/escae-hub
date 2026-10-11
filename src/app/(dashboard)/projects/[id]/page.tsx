@@ -66,28 +66,28 @@ export default async function ProjectDetailsPage({
         </Link>
       </div>
 
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white">{project.title}</h1>
-          <div className="mt-3 flex items-center gap-3">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold text-white sm:text-3xl break-words">{project.title}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-2.5 sm:gap-3">
             <Badge variant={isDraft ? "info" : "default"}>
               {isDraft ? "Brouillon" : project.status}
             </Badge>
-            <span className="text-sm text-white/60">
-              Modifié le {new Date(project.updated_at).toLocaleDateString()}
+            <span className="text-xs sm:text-sm text-white/60">
+              Modifié le {new Date(project.updated_at).toLocaleDateString("fr-FR")}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 pt-2 sm:pt-0">
           <DownloadPdfButton
             project={project}
             teamMembers={teamMembers || []}
-            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white/60 transition-all hover:border-white/30 hover:text-white"
+            className="rounded-lg border border-white/15 px-3.5 py-2 text-xs sm:text-sm font-medium text-white/60 transition-all hover:border-white/30 hover:text-white"
           />
           {isOwner && isDraft && (
             <form action={submitProject}>
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-xs sm:text-sm px-4 py-2">
                 Soumettre définitivement
               </Button>
             </form>
