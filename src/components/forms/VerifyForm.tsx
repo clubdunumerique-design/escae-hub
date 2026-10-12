@@ -202,7 +202,7 @@ export function VerifyForm() {
           <label className="mb-3 block text-center text-xs font-semibold uppercase tracking-wider text-white/50">
             Code de confirmation (6 chiffres)
           </label>
-          <div className="flex justify-between gap-2 sm:gap-3">
+          <div className="flex w-full items-center justify-between gap-1.5 sm:gap-3">
             {digits.map((digit, index) => (
               <input
                 key={index}
@@ -219,7 +219,7 @@ export function VerifyForm() {
                   handlePasteDigits(e.clipboardData.getData("text"));
                 }}
                 disabled={isLoading}
-                className="h-14 w-11 rounded-xl border border-white/10 bg-white/5 text-center font-mono text-2xl font-extrabold text-white shadow-inner backdrop-blur-md transition-all focus:border-[#05F228] focus:bg-[#03A61C]/10 focus:outline-none focus:ring-2 focus:ring-[#05F228]/40 disabled:opacity-50 sm:h-16 sm:w-13"
+                className="h-12 w-full min-w-0 max-w-[56px] rounded-xl border border-white/10 bg-white/5 text-center font-mono text-xl font-extrabold text-white shadow-inner backdrop-blur-md transition-all focus:border-[#05F228] focus:bg-[#03A61C]/10 focus:outline-none focus:ring-2 focus:ring-[#05F228]/40 disabled:opacity-50 sm:h-16 sm:text-2xl"
               />
             ))}
           </div>

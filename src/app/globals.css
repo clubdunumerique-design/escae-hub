@@ -34,11 +34,15 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
     @apply bg-[#0D0D0D] text-white;
     min-height: 100vh;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   /* Focus visible accessible */

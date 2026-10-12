@@ -19,45 +19,45 @@ export default function HomePage() {
           <div className="h-20 w-96 rounded-full bg-[#03A61C]/10 blur-3xl" />
         </div>
 
-        <div className="relative mx-auto grid max-w-7xl grid-cols-3 items-center px-6 py-4">
+        <div className="relative mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
 
           {/* ── ZONE GAUCHE : Logo ESCAE ── */}
           <div className="flex items-center">
-            <Link href="/" className="group flex items-center gap-3 transition-opacity hover:opacity-85">
+            <Link href="/" className="group flex items-center gap-2 sm:gap-3 transition-opacity hover:opacity-85">
               <Image
                 src="/logo-escae.png"
                 alt="Logo ESCAE-BÉNIN"
                 width={140}
                 height={56}
-                className="h-14 w-auto object-contain drop-shadow-lg"
+                className="h-9 w-auto object-contain drop-shadow-lg sm:h-12 md:h-14"
                 priority
               />
             </Link>
           </div>
 
-          {/* ── ZONE CENTRE : Titre plateforme ── */}
-          <div className="flex items-center justify-center gap-4">
-            <div className="hidden h-10 w-px bg-gradient-to-b from-transparent via-[#03A61C]/50 to-transparent sm:block" />
+          {/* ── ZONE CENTRE : Titre plateforme (visible sur desktop/tablette large) ── */}
+          <div className="hidden items-center justify-center gap-3 lg:flex">
+            <div className="h-8 w-px bg-gradient-to-b from-transparent via-[#03A61C]/50 to-transparent" />
             <div className="text-center">
               <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/40">
                 ESCAE-BÉNIN
               </p>
-              <p className="text-lg font-extrabold uppercase tracking-[0.15em] text-[#05F228] drop-shadow-[0_0_12px_rgba(5,242,40,0.5)]">
+              <p className="text-base font-extrabold uppercase tracking-[0.15em] text-[#05F228] drop-shadow-[0_0_12px_rgba(5,242,40,0.5)]">
                 Innovation Hub
               </p>
             </div>
-            <div className="hidden h-10 w-px bg-gradient-to-b from-transparent via-[#03A61C]/50 to-transparent sm:block" />
+            <div className="h-8 w-px bg-gradient-to-b from-transparent via-[#03A61C]/50 to-transparent" />
           </div>
 
-          {/* ── ZONE DROITE : Logo Hub + Nav ── */}
-          <div className="flex items-center justify-end gap-4">
-            <div className="hidden items-center gap-2 sm:flex">
+          {/* ── ZONE DROITE : Logo Hub + Actions ── */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="hidden items-center gap-2 md:flex">
               <Image
                 src="/logo-hub.png"
                 alt="Hub Innovation"
-                width={52}
-                height={52}
-                className="h-13 w-auto object-contain drop-shadow-[0_0_8px_rgba(5,242,40,0.3)]"
+                width={48}
+                height={48}
+                className="h-10 w-auto object-contain drop-shadow-[0_0_8px_rgba(5,242,40,0.3)]"
                 priority
               />
               <div className="text-left">
@@ -65,18 +65,18 @@ export default function HomePage() {
                 <p className="text-[10px] text-[#79F281] leading-tight">ESCAE-BÉNIN</p>
               </div>
             </div>
-            <div className="h-8 w-px bg-white/10" />
+            <div className="hidden h-6 w-px bg-white/10 md:block" />
             <nav className="flex items-center gap-2" aria-label="Navigation principale">
               <Link
                 href="/auth/login"
-                className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white/80 transition-all hover:border-white/30 hover:text-white"
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-white/80 transition-all hover:border-white/30 hover:text-white sm:px-4 sm:py-2 sm:text-sm"
               >
                 Connexion
               </Link>
               <Link
                 href="/auth/register"
                 id="cta-register-nav"
-                className="rounded-lg bg-[#03A61C] px-4 py-2 text-sm font-semibold text-white shadow-[0_0_16px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:shadow-[0_0_24px_rgba(5,242,40,0.5)]"
+                className="rounded-lg bg-[#03A61C] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_16px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:shadow-[0_0_24px_rgba(5,242,40,0.5)] sm:px-4 sm:py-2 sm:text-sm"
               >
                 S&apos;inscrire
               </Link>
