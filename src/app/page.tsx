@@ -247,8 +247,8 @@ export default function HomePage() {
         </section>
 
         {/* ── CTA FINAL ── */}
-        <section className="relative overflow-hidden py-24">
-          <div className="pointer-events-none absolute inset-0">
+        <section className="cta-banner-section relative overflow-hidden py-24">
+          <div className="cta-banner-bg pointer-events-none absolute inset-0">
             <div className="absolute inset-0 bg-gradient-to-r from-[#074015] via-[#152614] to-[#074015]" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D0D] via-transparent to-[#0D0D0D]" />
           </div>
