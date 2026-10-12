@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { APP_CONFIG } from "@/config/app.config";
+import { FooterSignature } from "@/components/layout/FooterSignature";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "Authentification — ESCAE Innovation Hub",
@@ -50,19 +52,22 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </p>
           </div>
 
-          {/* Logo droit Hub */}
-          <div className="flex items-center gap-2">
-            <Image
-              src="/logo-hub.png"
-              alt="Hub"
-              width={36}
-              height={36}
-              className="h-7 w-auto object-contain opacity-85 sm:h-9"
-              priority
-            />
-            <div className="text-left">
-              <p className="text-[10px] font-bold text-white/80 leading-tight sm:text-xs">Hub Innovation</p>
-              <p className="text-[8px] text-[#79F281] leading-tight sm:text-[9px]">ESCAE-BÉNIN</p>
+          {/* Logo droit Hub & ThemeToggle */}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <Image
+                src="/logo-hub.png"
+                alt="Hub"
+                width={36}
+                height={36}
+                className="h-7 w-auto object-contain opacity-85 sm:h-9"
+                priority
+              />
+              <div className="hidden text-left min-[420px]:block">
+                <p className="text-[10px] font-bold text-white/80 leading-tight sm:text-xs">Hub Innovation</p>
+                <p className="text-[8px] text-[#79F281] leading-tight sm:text-[9px]">ESCAE-BÉNIN</p>
+              </div>
             </div>
           </div>
         </div>
@@ -77,8 +82,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-white/10 px-4 py-4 text-center text-xs text-white/30">
-        {APP_CONFIG.name} — v{APP_CONFIG.version}
+      <footer className="relative z-10 border-t border-white/10 px-4 py-4 text-xs text-white/40">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 sm:flex-row">
+          <p className="text-white/30">{APP_CONFIG.name} — v{APP_CONFIG.version}</p>
+          <FooterSignature variant="compact" />
+        </div>
       </footer>
     </div>
   );

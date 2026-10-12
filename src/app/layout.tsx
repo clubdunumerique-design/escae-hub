@@ -34,6 +34,7 @@ export const metadata: Metadata = {
 import { Suspense } from "react";
 import { AuthHashListener } from "@/components/auth/AuthHashListener";
 import { RouteProgressBar } from "@/components/layout/RouteProgressBar";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 export default function RootLayout({
   children,
@@ -41,13 +42,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className={inter.variable}>
+    <html lang="fr" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                const t = localStorage.getItem("escae-theme") || "dark";
+                document.documentElement.setAttribute("data-theme", t);
+              } catch (_) {}
+            `,
+          }}
+        />
+      </head>
       <body>
-        <Suspense fallback={null}>
-          <RouteProgressBar />
-        </Suspense>
-        <AuthHashListener />
-        {children}
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <RouteProgressBar />
+          </Suspense>
+          <AuthHashListener />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

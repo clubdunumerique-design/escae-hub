@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/actions";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 interface NavItem {
   href: string;
@@ -80,8 +81,9 @@ export function DashboardHeader({
           </div>
         </div>
 
-        {/* Côté droit : notifications et profil résumé */}
-        <div className="flex items-center gap-3">
+        {/* Côté droit : bascule de thème, notifications et profil résumé */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <ThemeToggle />
           <NotificationBell initialNotifications={notifications || []} />
           <div className="hidden items-center gap-2.5 pl-2 sm:flex">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#03A61C]/20 text-xs font-bold text-[#05F228]">

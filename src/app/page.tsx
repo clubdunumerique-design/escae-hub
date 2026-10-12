@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { APP_CONFIG } from "@/config/app.config";
+import { FooterSignature } from "@/components/layout/FooterSignature";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "ESCAE-BÉNIN Innovation Hub — Plateforme de projets étudiants",
@@ -66,6 +68,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="hidden h-6 w-px bg-white/10 md:block" />
+            <ThemeToggle />
             <nav className="flex items-center gap-2" aria-label="Navigation principale">
               <Link
                 href="/auth/login"
@@ -278,16 +281,20 @@ export default function HomePage() {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/10 bg-[#0D0D0D] py-8">
-        <div className="mx-auto max-w-6xl px-6">
+      <footer className="border-t border-white/10 bg-[#0D0D0D] py-10">
+        <div className="mx-auto max-w-6xl px-6 space-y-6">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-3">
               <Image src="/logo-escae.png" alt="ESCAE" width={80} height={32} className="h-8 w-auto object-contain opacity-70" />
             </div>
             <p className="text-center text-sm text-white/30">
-              {APP_CONFIG.name} — Version {APP_CONFIG.version} · Plateforme indépendante du site institutionnel de l&apos;ESCAE-BÉNIN.
+              {APP_CONFIG.name} — Version {APP_CONFIG.version} · Plateforme officielle d&apos;innovation étudiante.
             </p>
             <Image src="/logo-hub.png" alt="Hub" width={32} height={32} className="h-8 w-auto object-contain opacity-70" />
+          </div>
+
+          <div className="border-t border-white/5 pt-6">
+            <FooterSignature variant="full" />
           </div>
         </div>
       </footer>
