@@ -5,7 +5,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/actions";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
-import { FooterSignature } from "@/components/layout/FooterSignature";
 
 export const metadata: Metadata = {
   title: "Tableau de bord — ESCAE Innovation Hub",
@@ -158,7 +157,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </nav>
 
         {/* Déconnexion */}
-        <div className="border-t border-white/10 px-3 py-4 space-y-4">
+        <div className="border-t border-white/10 px-3 py-4">
           <form action={logoutAction}>
             <button
               type="submit"
@@ -170,11 +169,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
               Déconnexion
             </button>
           </form>
-
-          {/* Signature développeur sidebar */}
-          <div className="border-t border-white/5 pt-3">
-            <FooterSignature variant="compact" />
-          </div>
         </div>
       </aside>
 
@@ -193,11 +187,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         />
 
         {/* Main scrollable avec padding responsive */}
-        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:p-8 flex flex-col justify-between">
-          <div>{children}</div>
-          <footer className="mt-12 border-t border-white/10 pt-6">
-            <FooterSignature variant="full" />
-          </footer>
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:p-8">
+          {children}
         </main>
       </div>
     </div>
