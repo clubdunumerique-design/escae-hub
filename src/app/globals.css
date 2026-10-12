@@ -174,11 +174,20 @@ html[data-theme="light"] .hover\:bg-white\/10:hover {
 /* Section Stats & bandeaux sombres */
 html[data-theme="light"] .bg-\[\#074015\]\/30,
 html[data-theme="light"] .bg-\[\#074015\]\/40,
-html[data-theme="light"] .bg-\[\#074015\]\/20,
-html[data-theme="light"] .bg-gradient-to-r {
+html[data-theme="light"] .bg-\[\#074015\]\/20 {
   background-color: #F1F5F9 !important;
   background-image: none !important;
   border-color: #E2E8F0 !important;
+}
+
+/* Texte dégradé vibrant en mode clair (Innovez. Soumettez. Brillez. etc.) */
+html[data-theme="light"] .bg-clip-text {
+  background-image: linear-gradient(135deg, #03A61C 0%, #028014 50%, #074015 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: #03A61C !important;
+  font-weight: 800 !important;
 }
 
 /* Bannière finale CTA sur la page d'accueil */
@@ -204,6 +213,26 @@ html[data-theme="light"] .cta-banner-section .border-white\/20 {
   background-color: #FFFFFF !important;
   border-color: #A7F3D0 !important;
   color: #065F46 !important;
+}
+
+/* Bouton secondaire Hero et badge en mode clair */
+html[data-theme="light"] #cta-login {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+html[data-theme="light"] #cta-login:hover {
+  background-color: #F8FAFC !important;
+  border-color: #03A61C !important;
+  color: #03A61C !important;
+}
+
+html[data-theme="light"] .border-\[\#03A61C\]\/40 {
+  background-color: #DCFCE7 !important;
+  border-color: #86EFAC !important;
+  color: #166534 !important;
 }
 
 /* Bordures */
