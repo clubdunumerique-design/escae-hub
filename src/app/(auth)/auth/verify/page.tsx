@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { VerifyForm } from "@/components/forms/VerifyForm";
 import { Suspense } from "react";
-import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -17,36 +16,7 @@ export default function VerifyPage() {
       
       {/* En-tête avec les Logos Officiels */}
       <div className="border-b border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent px-8 pb-6 pt-7 text-center">
-        {/* Barre des Logos */}
-        <div className="mb-5 flex items-center justify-center gap-4">
-          <div className="flex h-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 shadow-sm">
-            <Image
-              src="/logo-escae.png"
-              alt="Logo ESCAE"
-              width={90}
-              height={36}
-              className="h-7 w-auto object-contain"
-              priority
-            />
-          </div>
-          
-          <div className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#05F228] shadow-[0_0_8px_#05F228]" />
-            <span className="h-px w-5 bg-white/20" />
-            <span className="h-1.5 w-1.5 rounded-full bg-[#03A61C]" />
-          </div>
 
-          <div className="flex h-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 shadow-sm">
-            <Image
-              src="/logo-hub.png"
-              alt="Logo Hub"
-              width={38}
-              height={38}
-              className="h-8 w-auto object-contain"
-              priority
-            />
-          </div>
-        </div>
 
         {/* Badge Icône de Sécurité */}
         <div className="relative mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#05F228]/30 bg-gradient-to-br from-[#03A61C]/30 to-[#074015]/40 text-[#05F228] shadow-[0_0_20px_rgba(5,242,40,0.25)]">
