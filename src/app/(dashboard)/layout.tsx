@@ -57,18 +57,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, role")
-    .eq("id", user.id)
-    .single();
+  // Requêtes en parallèle pour accélérer considérablement le rendu
+  const [profileRes, notifsRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, role")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("notifications")
+      .select("id, title, message, read, type, created_at, link")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
 
-  const { data: notifications } = await supabase
-    .from("notifications")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const profile = profileRes.data;
+  const notifications = notifsRes.data;
 
   const isAdmin = profile?.role === "admin" || profile?.role === "director";
   const roleLabels: Record<string, string> = {
@@ -84,7 +89,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D] md:flex">
         {/* Logo */}
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-          <Link href="/dashboard" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+          <Link href="/dashboard" prefetch={true} className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <Image
               src="/logo-escae.png"
               alt="ESCAE-BÉNIN"
@@ -122,6 +127,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/60 transition-all hover:bg-white/5 hover:text-white"
             >
               <span className="text-[#03A61C]">{item.icon}</span>
@@ -139,6 +145,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={true}
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/60 transition-all hover:bg-white/5 hover:text-white"
                 >
                   <span className="text-amber-400">{item.icon}</span>

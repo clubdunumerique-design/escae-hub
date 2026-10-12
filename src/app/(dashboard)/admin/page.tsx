@@ -36,24 +36,27 @@ export default async function AdminPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // Vérification du rôle admin
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, full_name")
-    .eq("id", user.id)
-    .single();
+  // Vérification du rôle admin et chargement des projets en parallèle
+  const [profileRes, projectsRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("role, full_name")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("projects")
+      .select(`
+        id, title, status, created_at, updated_at,
+        profiles!owner_id ( full_name, email, department )
+      `)
+      .order("created_at", { ascending: false }),
+  ]);
 
+  const profile = profileRes.data;
   const isAdmin = profile?.role === "admin" || profile?.role === "director";
   if (!isAdmin) redirect("/dashboard");
 
-  // Récupération de tous les projets avec le nom du propriétaire
-  const { data: projects } = await supabase
-    .from("projects")
-    .select(`
-      id, title, status, created_at, updated_at,
-      profiles!owner_id ( full_name, email, department )
-    `)
-    .order("created_at", { ascending: false });
+  const projects = projectsRes.data;
 
   // Compteurs par statut
   const counts = {

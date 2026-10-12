@@ -34,14 +34,21 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("profiles").select("*").eq("id", user.id).single();
+  const [profileRes, projectsRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, role, is_verified")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("projects")
+      .select("id, title, status, created_at, updated_at")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false }),
+  ]);
 
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, title, status, created_at, updated_at")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
+  const profile = profileRes.data;
+  const projects = projectsRes.data;
 
   const stats = {
     total: projects?.length ?? 0,

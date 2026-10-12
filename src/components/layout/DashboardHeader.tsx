@@ -152,6 +152,7 @@ export function DashboardHeader({
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={true}
                     onClick={closeMenu}
                     className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
                       isActive
@@ -177,6 +178,7 @@ export function DashboardHeader({
                       <Link
                         key={item.href}
                         href={item.href}
+                        prefetch={true}
                         onClick={closeMenu}
                         className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
                           isActive

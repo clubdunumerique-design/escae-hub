@@ -27,21 +27,24 @@ export default async function AdminUsersPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // Vérification du rôle — seuls admin et director ont accès
-  const { data: callerProfile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  // Vérification des droits et récupération des profils en parallèle
+  const [callerRes, profilesRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("profiles")
+      .select("id, email, full_name, role, is_verified, department, student_id, phone, created_at")
+      .order("created_at", { ascending: false }),
+  ]);
 
+  const callerProfile = callerRes.data;
   const canAccess = ["admin", "director"].includes(callerProfile?.role ?? "");
   if (!canAccess) redirect("/dashboard");
 
-  // Récupération de tous les profils
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const profiles = profilesRes.data;
 
   const stats = {
     total: profiles?.length ?? 0,

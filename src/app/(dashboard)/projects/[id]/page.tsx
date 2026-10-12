@@ -36,21 +36,25 @@ export default async function ProjectDetailsPage({
     notFound();
   }
 
-  const { data: teamMembers } = await supabase
-    .from("team_members")
-    .select("name, role_in_project")
-    .eq("project_id", project.id);
+  const [teamRes, docsRes, presRes] = await Promise.all([
+    supabase
+      .from("team_members")
+      .select("name, role_in_project")
+      .eq("project_id", project.id),
+    supabase
+      .from("project_documents")
+      .select("id, name, storage_path, size_bytes")
+      .eq("project_id", project.id),
+    supabase
+      .from("presentations")
+      .select("scheduled_date, scheduled_time, room, notes")
+      .eq("project_id", project.id)
+      .maybeSingle(),
+  ]);
 
-  const { data: documents } = await supabase
-    .from("project_documents")
-    .select("id, name, storage_path, size_bytes")
-    .eq("project_id", project.id);
-
-  const { data: presentation } = await supabase
-    .from("presentations")
-    .select("scheduled_date, scheduled_time, room, notes")
-    .eq("project_id", project.id)
-    .single();
+  const teamMembers = teamRes.data;
+  const documents = docsRes.data;
+  const presentation = presRes.data;
 
   const isOwner = project.owner_id === user.id;
   const isDraft = project.status === "draft";

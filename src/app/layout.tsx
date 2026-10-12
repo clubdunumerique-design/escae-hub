@@ -31,7 +31,9 @@ export const metadata: Metadata = {
   // une fois le logo et les couleurs officielles confirmés
 };
 
+import { Suspense } from "react";
 import { AuthHashListener } from "@/components/auth/AuthHashListener";
+import { RouteProgressBar } from "@/components/layout/RouteProgressBar";
 
 export default function RootLayout({
   children,
@@ -41,6 +43,9 @@ export default function RootLayout({
   return (
     <html lang="fr" className={inter.variable}>
       <body>
+        <Suspense fallback={null}>
+          <RouteProgressBar />
+        </Suspense>
         <AuthHashListener />
         {children}
       </body>
