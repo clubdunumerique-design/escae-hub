@@ -107,6 +107,26 @@ export async function verifyOtpAction(
   return { success: true, data: undefined };
 }
 
+export async function resendOtpAction(
+  email: string
+): Promise<ApiResponse<void>> {
+  if (!email) {
+    return { success: false, error: "Adresse email requise." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+  });
+
+  if (error) {
+    return { success: false, error: "Délai de renvoi non atteint ou erreur réseau. Veuillez patienter une minute." };
+  }
+
+  return { success: true, data: undefined };
+}
+
 export async function forgotPasswordAction(
   formData: FormData
 ): Promise<ApiResponse<void>> {
