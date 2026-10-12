@@ -64,12 +64,18 @@ export function DashboardHeader({
 
           {/* Logo visible sur mobile dans le header */}
           <Link href="/dashboard" className="flex items-center gap-2 md:hidden">
-            <Image src="/logo-escae.png" alt="ESCAE" width={80} height={30} className="h-7 w-auto object-contain" />
+            <Image
+              src="/logo-escae.png"
+              alt="ESCAE-BÉNIN"
+              width={110}
+              height={44}
+              className="h-9 w-auto object-contain"
+            />
           </Link>
 
           {/* Label sur desktop */}
           <div className="hidden items-center gap-2 text-xs font-medium text-white/40 md:flex">
-            <Image src="/logo-hub.png" alt="Hub" width={20} height={20} className="h-4 w-auto opacity-60" />
+            <Image src="/logo-hub.png" alt="Hub" width={24} height={24} className="h-5 w-auto opacity-70" />
             <span className="tracking-widest uppercase">ESCAE INNOVATION HUB</span>
           </div>
         </div>
@@ -102,7 +108,13 @@ export function DashboardHeader({
             {/* Haut du tiroir */}
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <Link href="/dashboard" onClick={closeMenu}>
-                <Image src="/logo-escae.png" alt="ESCAE" width={90} height={36} className="h-8 w-auto object-contain" />
+                <Image
+                  src="/logo-escae.png"
+                  alt="ESCAE-BÉNIN"
+                  width={120}
+                  height={48}
+                  className="h-10 w-auto object-contain"
+                />
               </Link>
               <button
                 type="button"

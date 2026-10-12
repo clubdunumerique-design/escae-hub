@@ -83,9 +83,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* ── SIDEBAR DESKTOP (caché sur mobile, affiché à partir de md) ── */}
       <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D] md:flex">
         {/* Logo */}
-        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
+        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
           <Link href="/dashboard" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-            <Image src="/logo-escae.png" alt="ESCAE" width={90} height={36} className="h-9 w-auto object-contain" />
+            <Image
+              src="/logo-escae.png"
+              alt="ESCAE-BÉNIN"
+              width={140}
+              height={56}
+              className="h-12 w-auto object-contain drop-shadow"
+              priority
+            />
           </Link>
         </div>
 
