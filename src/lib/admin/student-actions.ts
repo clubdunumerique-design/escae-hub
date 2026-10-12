@@ -61,3 +61,79 @@ export async function verifyStudentAction(
   revalidatePath("/admin");
   return { success: true, data: undefined };
 }
+
+/**
+ * Promeut ou rétrograde le rôle d'un utilisateur.
+ * EXCLUSIVEMENT réservé au rôle : director.
+ * Un directeur peut rendre un étudiant administrateur, ou retirer le rôle admin.
+ * Il ne peut pas modifier un autre directeur.
+ */
+export async function changeUserRoleAction(
+  targetId: string,
+  newRole: "admin" | "student"
+): Promise<ApiResponse<void>> {
+  // 1. Vérifier que l'appelant est authentifié
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: "Non autorisé.", code: "UNAUTHORIZED" };
+  }
+
+  // 2. Vérifier que l'appelant est bien un directeur
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!callerProfile || callerProfile.role !== "director") {
+    return {
+      success: false,
+      error: "Seul un Directeur peut modifier les rôles des utilisateurs.",
+      code: "FORBIDDEN",
+    };
+  }
+
+  // 3. Vérifier que la cible n'est pas un directeur (protection)
+  const adminClient = createSupabaseAdminClient();
+  const { data: targetProfile } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", targetId)
+    .single();
+
+  if (!targetProfile) {
+    return { success: false, error: "Utilisateur introuvable." };
+  }
+
+  if (targetProfile.role === "director") {
+    return {
+      success: false,
+      error: "Impossible de modifier le rôle d'un Directeur.",
+      code: "FORBIDDEN",
+    };
+  }
+
+  // 4. Appliquer le changement de rôle via le client admin
+  const { error } = await adminClient
+    .from("profiles")
+    .update({
+      role: newRole,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", targetId);
+
+  if (error) {
+    return {
+      success: false,
+      error: "Erreur lors de la modification du rôle.",
+    };
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin");
+  return { success: true, data: undefined };
+}

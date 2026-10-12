@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
-import { verifyStudentAction } from "@/lib/admin/student-actions";
+import { verifyStudentAction, changeUserRoleAction } from "@/lib/admin/student-actions";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -96,8 +96,13 @@ export default async function AdminUsersPage() {
 
       {/* ── Tableau des utilisateurs ── */}
       <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
-        <div className="border-b border-white/10 px-6 py-4">
+        <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
           <h2 className="font-semibold text-white">Tous les comptes</h2>
+          {callerProfile?.role === "director" && (
+            <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-300">
+              Mode Directeur — gestion des rôles activée
+            </span>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -108,16 +113,19 @@ export default async function AdminUsersPage() {
                 <th className="px-6 py-3">Rôle</th>
                 <th className="px-6 py-3">Vérification</th>
                 <th className="px-6 py-3">Inscrit le</th>
-                <th className="px-6 py-3">Action</th>
+                <th className="px-6 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {profiles && profiles.length > 0 ? (
                 profiles.map((profile) => {
                   const isStudent = profile.role === "student";
+                  const isAdmin = profile.role === "admin";
+                  const isDirector = profile.role === "director";
                   const canVerify = ["admin", "director"].includes(callerProfile?.role ?? "");
+                  const isCallerDirector = callerProfile?.role === "director";
 
-                  // Server Action liée pour ce profil spécifique
+                  // Server Actions : vérification
                   const verifyAction = async () => {
                     "use server";
                     await verifyStudentAction(profile.id, true);
@@ -125,6 +133,16 @@ export default async function AdminUsersPage() {
                   const unverifyAction = async () => {
                     "use server";
                     await verifyStudentAction(profile.id, false);
+                  };
+
+                  // Server Actions : changement de rôle (director only)
+                  const promoteToAdminAction = async () => {
+                    "use server";
+                    await changeUserRoleAction(profile.id, "admin");
+                  };
+                  const demoteToStudentAction = async () => {
+                    "use server";
+                    await changeUserRoleAction(profile.id, "student");
                   };
 
                   return (
@@ -176,33 +194,69 @@ export default async function AdminUsersPage() {
                         {new Date(profile.created_at).toLocaleDateString("fr-FR")}
                       </td>
 
-                      {/* Bouton d'action */}
+                      {/* Boutons d'action */}
                       <td className="px-6 py-4">
-                        {isStudent && canVerify ? (
-                          profile.is_verified ? (
-                            <form action={unverifyAction}>
-                              <button
-                                type="submit"
-                                id={`unverify-${profile.id}`}
-                                className="rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 transition-all hover:bg-red-500/20"
-                              >
-                                Retirer la vérification
-                              </button>
-                            </form>
-                          ) : (
-                            <form action={verifyAction}>
-                              <button
-                                type="submit"
-                                id={`verify-${profile.id}`}
-                                className="rounded-lg bg-[#03A61C]/20 px-3 py-1.5 text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/40"
-                              >
-                                Vérifier ✓
-                              </button>
-                            </form>
-                          )
-                        ) : (
-                          <span className="text-xs text-white/20">—</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Vérification étudiant */}
+                          {isStudent && canVerify && (
+                            profile.is_verified ? (
+                              <form action={unverifyAction}>
+                                <button
+                                  type="submit"
+                                  id={`unverify-${profile.id}`}
+                                  className="rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 transition-all hover:bg-red-500/20"
+                                >
+                                  Retirer vérif.
+                                </button>
+                              </form>
+                            ) : (
+                              <form action={verifyAction}>
+                                <button
+                                  type="submit"
+                                  id={`verify-${profile.id}`}
+                                  className="rounded-lg bg-[#03A61C]/20 px-3 py-1.5 text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/40"
+                                >
+                                  Vérifier ✓
+                                </button>
+                              </form>
+                            )
+                          )}
+
+                          {/* Promotion / rétrogradation — directeur uniquement */}
+                          {isCallerDirector && !isDirector && (
+                            isAdmin ? (
+                              <form action={demoteToStudentAction}>
+                                <button
+                                  type="submit"
+                                  id={`demote-${profile.id}`}
+                                  title="Retirer le rôle Administrateur"
+                                  className="rounded-lg bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-all hover:bg-amber-500/20"
+                                >
+                                  ↓ Rétrograder
+                                </button>
+                              </form>
+                            ) : (
+                              <form action={promoteToAdminAction}>
+                                <button
+                                  type="submit"
+                                  id={`promote-${profile.id}`}
+                                  title="Nommer Administrateur"
+                                  className="rounded-lg bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 transition-all hover:bg-sky-500/20"
+                                >
+                                  ↑ Rendre Admin
+                                </button>
+                              </form>
+                            )
+                          )}
+
+                          {/* Aucune action disponible */}
+                          {!isStudent && !isCallerDirector && (
+                            <span className="text-xs text-white/20">—</span>
+                          )}
+                          {isDirector && (
+                            <span className="text-xs text-white/20">Directeur protégé</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
