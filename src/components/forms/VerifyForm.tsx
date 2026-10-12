@@ -5,12 +5,14 @@ import { verifyOtpAction, resendOtpAction } from "@/app/(auth)/actions";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
+const OTP_LENGTH = 8;
+
 export function VerifyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
 
-  const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,7 +38,7 @@ export function VerifyForm() {
   }, []);
 
   const handleChange = (index: number, value: string) => {
-    // Si l'utilisateur colle ou tape plusieurs chiffres
+    // Nettoyer les caractères non numériques
     const sanitized = value.replace(/\D/g, "");
     if (!sanitized) {
       const nextDigits = [...digits];
@@ -55,12 +57,12 @@ export function VerifyForm() {
     setDigits(nextDigits);
 
     // Passer au champ suivant
-    if (index < 5) {
+    if (index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
     } else {
       // Si on remplit le dernier chiffre, auto-soumettre
       const fullToken = nextDigits.join("");
-      if (fullToken.length === 6) {
+      if (fullToken.length === OTP_LENGTH) {
         submitOtp(fullToken);
       }
     }
@@ -73,19 +75,19 @@ export function VerifyForm() {
   };
 
   const handlePasteDigits = (pastedText: string) => {
-    const rawDigits = pastedText.replace(/\D/g, "").slice(0, 6).split("");
+    const rawDigits = pastedText.replace(/\D/g, "").slice(0, OTP_LENGTH).split("");
     if (rawDigits.length === 0) return;
 
-    const nextDigits = ["", "", "", "", "", ""];
+    const nextDigits = Array(OTP_LENGTH).fill("");
     rawDigits.forEach((digit, i) => {
       nextDigits[i] = digit;
     });
     setDigits(nextDigits);
 
-    const targetIndex = Math.min(rawDigits.length, 5);
+    const targetIndex = Math.min(rawDigits.length, OTP_LENGTH - 1);
     inputRefs.current[targetIndex]?.focus();
 
-    if (rawDigits.length === 6) {
+    if (rawDigits.length === OTP_LENGTH) {
       submitOtp(nextDigits.join(""));
     }
   };
@@ -95,8 +97,8 @@ export function VerifyForm() {
       setError("Adresse email introuvable dans l'URL.");
       return;
     }
-    if (tokenToVerify.length !== 6) {
-      setError("Veuillez saisir les 6 chiffres du code.");
+    if (tokenToVerify.length !== OTP_LENGTH) {
+      setError(`Veuillez saisir les ${OTP_LENGTH} chiffres du code.`);
       return;
     }
 
@@ -137,7 +139,7 @@ export function VerifyForm() {
     try {
       const res = await resendOtpAction(email);
       if (res.success) {
-        setInfoMessage("Un nouveau code à 6 chiffres a été envoyé par email.");
+        setInfoMessage(`Un nouveau code à ${OTP_LENGTH} chiffres a été envoyé par email.`);
         setCooldown(60);
       } else {
         setError(res.error);
@@ -196,39 +198,75 @@ export function VerifyForm() {
         </div>
       )}
 
-      {/* Formulaire de saisie des 6 chiffres */}
+      {/* Formulaire de saisie des 8 chiffres */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <div>
           <label className="mb-3 block text-center text-xs font-semibold uppercase tracking-wider text-white/50">
-            Code de confirmation (6 chiffres)
+            Code de confirmation (8 chiffres)
           </label>
-          <div className="flex w-full items-center justify-between gap-1.5 sm:gap-3">
-            {digits.map((digit, index) => (
-              <input
-                key={index}
-                ref={(el) => { inputRefs.current[index] = el; }}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                value={digit}
-                onChange={(e) => handleChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={(e) => {
-                  e.preventDefault();
-                  handlePasteDigits(e.clipboardData.getData("text"));
-                }}
-                disabled={isLoading}
-                className="h-12 w-full min-w-0 max-w-[56px] rounded-xl border border-white/10 bg-white/5 text-center font-mono text-xl font-extrabold text-white shadow-inner backdrop-blur-md transition-all focus:border-[#05F228] focus:bg-[#03A61C]/10 focus:outline-none focus:ring-2 focus:ring-[#05F228]/40 disabled:opacity-50 sm:h-16 sm:text-2xl"
-              />
-            ))}
+
+          {/* Grille de 8 cases divisée en 2 groupes de 4 avec séparateur central */}
+          <div className="flex w-full items-center justify-between gap-1 sm:gap-2">
+            {/* Premier groupe de 4 */}
+            <div className="flex flex-1 items-center justify-between gap-1 sm:gap-1.5">
+              {digits.slice(0, 4).map((digit, index) => (
+                <input
+                  key={index}
+                  ref={(el) => { inputRefs.current[index] = el; }}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    handlePasteDigits(e.clipboardData.getData("text"));
+                  }}
+                  disabled={isLoading}
+                  className="h-11 w-full min-w-0 max-w-[42px] rounded-lg border border-white/10 bg-white/5 text-center font-mono text-lg font-extrabold text-white shadow-inner backdrop-blur-md transition-all focus:border-[#05F228] focus:bg-[#03A61C]/10 focus:outline-none focus:ring-1 focus:ring-[#05F228]/40 disabled:opacity-50 sm:h-14 sm:max-w-[48px] sm:rounded-xl sm:text-2xl"
+                />
+              ))}
+            </div>
+
+            {/* Séparateur visuel */}
+            <div className="flex items-center px-0.5 text-white/20 sm:px-1">
+              <span className="h-0.5 w-2 rounded-full bg-white/30 sm:w-3" />
+            </div>
+
+            {/* Deuxième groupe de 4 */}
+            <div className="flex flex-1 items-center justify-between gap-1 sm:gap-1.5">
+              {digits.slice(4, 8).map((digit, idx) => {
+                const index = idx + 4;
+                return (
+                  <input
+                    key={index}
+                    ref={(el) => { inputRefs.current[index] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      handlePasteDigits(e.clipboardData.getData("text"));
+                    }}
+                    disabled={isLoading}
+                    className="h-11 w-full min-w-0 max-w-[42px] rounded-lg border border-white/10 bg-white/5 text-center font-mono text-lg font-extrabold text-white shadow-inner backdrop-blur-md transition-all focus:border-[#05F228] focus:bg-[#03A61C]/10 focus:outline-none focus:ring-1 focus:ring-[#05F228]/40 disabled:opacity-50 sm:h-14 sm:max-w-[48px] sm:rounded-xl sm:text-2xl"
+                  />
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Bouton de validation */}
         <button
           type="submit"
-          disabled={isLoading || digits.join("").length !== 6 || !email}
+          disabled={isLoading || digits.join("").length !== OTP_LENGTH || !email}
           className="group relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-[#03A61C] to-[#05F228] px-4 py-3.5 text-sm font-bold text-black shadow-[0_0_25px_rgba(5,242,40,0.35)] transition-all hover:shadow-[0_0_35px_rgba(5,242,40,0.55)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {isLoading ? (

@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Vérification OTP — ESCAE Innovation Hub",
-  description: "Saisissez votre code à 6 chiffres pour valider votre compte.",
+  description: "Saisissez votre code à 8 chiffres pour valider votre compte.",
 };
 
 export default function VerifyPage() {
