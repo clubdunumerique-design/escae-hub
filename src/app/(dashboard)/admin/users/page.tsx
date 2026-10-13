@@ -36,7 +36,7 @@ export default async function AdminUsersPage() {
       .single(),
     supabase
       .from("profiles")
-      .select("id, email, full_name, role, is_verified, department, student_id, phone, created_at")
+      .select("id, email, full_name, role, is_verified, department, student_id, created_at")
       .order("created_at", { ascending: false }),
   ]);
 
