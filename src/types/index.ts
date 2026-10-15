@@ -132,3 +132,44 @@ export interface Presentation {
 export type ApiResponse<T> =
   | { success: true; data: T }
   | { success: false; error: string; code?: string };
+
+/** Statut d'un mandat administrateur */
+export type AppointmentStatus =
+  | "pending_acceptance"  // Invitation envoyée, en attente d'acceptation
+  | "active"              // Administrateur en fonction
+  | "ended"               // Fonction clôturée normalement
+  | "revoked";            // Droits révoqués par le directeur
+
+/** Enregistrement d'un mandat administrateur */
+export interface AdminAppointment {
+  id: string;
+  admin_id: string;
+  appointed_by: string;
+  status: AppointmentStatus;
+  mission_description: string | null;
+  start_date: string | null;              // Date réelle de prise de fonction
+  end_date: string | null;               // Date réelle de fin de fonction
+  invitation_sent_at: string | null;
+  invitation_accepted_at: string | null;
+  revocation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Mandat avec profils joints (pour l'affichage) */
+export interface AdminAppointmentWithProfiles extends AdminAppointment {
+  admin: Pick<UserProfile, "id" | "email" | "full_name" | "department"> | null;
+  director: Pick<UserProfile, "id" | "full_name"> | null;
+}
+
+/** Entrée du journal d'audit */
+export interface AuditLog {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  target_id: string | null;
+  target_type: string | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+}

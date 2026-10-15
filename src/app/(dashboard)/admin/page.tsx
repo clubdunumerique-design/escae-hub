@@ -87,19 +87,27 @@ export default async function AdminPage() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-sky-400">Directeur</p>
-                <h2 className="mt-0.5 text-base font-bold text-white">Gestion des rôles utilisateurs</h2>
+                <h2 className="mt-0.5 text-base font-bold text-white">Gestion des administrateurs</h2>
                 <p className="mt-1 text-sm text-white/50">
-                  Nommez des administrateurs, retirez des droits ou vérifiez les comptes étudiants.
-                  Cette fonctionnalité est exclusive au rôle Directeur.
+                  Nommez des administrateurs, envoyez des invitations sécurisées, clôturez des mandats
+                  et consultez l&apos;historique complet. Fonctionnalité exclusive au directeur.
                 </p>
               </div>
             </div>
-            <Link
-              href="/admin/users"
-              className="flex-shrink-0 rounded-xl bg-sky-500/20 px-5 py-2.5 text-sm font-semibold text-sky-300 transition-all hover:bg-sky-500/30 hover:text-white"
-            >
-              Gérer les utilisateurs →
-            </Link>
+            <div className="flex flex-col gap-2">
+              <Link
+                href="/admin/appointments"
+                className="flex-shrink-0 rounded-xl bg-sky-500/20 px-5 py-2.5 text-sm font-semibold text-sky-300 transition-all hover:bg-sky-500/30 hover:text-white"
+              >
+                Gérer les nominations →
+              </Link>
+              <Link
+                href="/admin/users"
+                className="flex-shrink-0 rounded-xl bg-white/5 px-5 py-2 text-xs font-medium text-white/50 transition-all hover:bg-white/10 hover:text-white"
+              >
+                Tous les utilisateurs
+              </Link>
+            </div>
           </div>
         </div>
       )}

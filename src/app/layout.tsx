@@ -27,8 +27,13 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
-  // [PROVISOIRE] Les métadonnées Open Graph seront complétées
-  // une fois le logo et les couleurs officielles confirmés
+  icons: {
+    icon: [
+      { url: "/logo-hub.png", type: "image/png" },
+    ],
+    shortcut: "/logo-hub.png",
+    apple: "/logo-hub.png",
+  },
 };
 
 import { Suspense } from "react";

@@ -133,6 +133,22 @@ export async function changeUserRoleAction(
     };
   }
 
+  // 5. Journal d'audit (best-effort)
+  try {
+    await adminClient.from("audit_logs").insert({
+      actor_id: user.id,
+      action: "user.role_changed",
+      target_id: targetId,
+      target_type: "profile",
+      details: {
+        previous_role: targetProfile.role,
+        new_role: newRole,
+      },
+    });
+  } catch {
+    console.error("[audit] Échec écriture log changeUserRole");
+  }
+
   revalidatePath("/admin/users");
   revalidatePath("/admin");
   return { success: true, data: undefined };
