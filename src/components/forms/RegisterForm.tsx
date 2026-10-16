@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { registerAction } from "@/app/(auth)/actions";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export function RegisterForm() {
@@ -50,6 +49,24 @@ export function RegisterForm() {
       <div>
         <label htmlFor="fullName" className={labelClass}>Nom complet</label>
         <input id="fullName" name="fullName" type="text" required placeholder="Prénom Nom" className={inputClass} />
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label htmlFor="studentId" className={labelClass.replace("mb-2 ", "")}>
+            Matricule étudiant
+          </label>
+          <span className="text-[10px] text-white/40 font-normal">Recommandé</span>
+        </div>
+        <input
+          id="studentId"
+          name="studentId"
+          type="text"
+          placeholder="Ex : 24-INFO-0042 (optionnel)"
+          className={inputClass}
+        />
+        <p className="mt-1 text-[11px] text-white/35">
+          Permet d&apos;activer automatiquement le statut « Étudiant vérifié ».
+        </p>
       </div>
       <div>
         <label htmlFor="email" className={labelClass}>Adresse e-mail</label>

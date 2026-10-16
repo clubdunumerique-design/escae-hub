@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { loginSchema, registerSchema } from "@/lib/validations/auth";
 import type { ApiResponse } from "@/types";
 import { revalidatePath } from "next/cache";
@@ -37,21 +37,58 @@ export async function registerAction(
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
+  const studentId = (formData.get("studentId") as string) || undefined;
 
   const parsed = registerSchema.safeParse({
     fullName,
     email,
+    studentId,
     password,
     confirmPassword,
   });
 
   if (!parsed.success) {
-    return { success: false, error: "Veuillez vérifier les champs du formulaire." };
+    return { success: false, error: parsed.error.errors[0]?.message || "Veuillez vérifier les champs du formulaire." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const rawMatricule = parsed.data.studentId?.trim().toUpperCase();
+
+  // 1. Contrôle anti-usurpation préalable du matricule
+  if (rawMatricule) {
+    // Vérifier si un compte profil possède déjà ce matricule
+    const { data: profileWithMatricule } = await adminClient
+      .from("profiles")
+      .select("id, email")
+      .ilike("student_id", rawMatricule)
+      .maybeSingle();
+
+    if (profileWithMatricule) {
+      return {
+        success: false,
+        error: "Ce matricule étudiant est déjà associé à un compte utilisateur. Contactez la scolarité en cas de litige.",
+      };
+    }
+
+    // Vérifier si la fiche dans le registre est déjà réclamée par un autre utilisateur
+    const { data: registryClaimed } = await adminClient
+      .from("student_matricule_registry")
+      .select("id, claimed_by_user_id")
+      .ilike("matricule", rawMatricule)
+      .not("claimed_by_user_id", "is", null)
+      .maybeSingle();
+
+    if (registryClaimed) {
+      return {
+        success: false,
+        error: "Ce matricule étudiant est déjà réclamé. Contactez l'administration.",
+      };
+    }
   }
 
   const supabase = await createSupabaseServerClient();
   
-  // Inscription Supabase
+  // 2. Inscription dans Supabase Auth
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
@@ -64,7 +101,6 @@ export async function registerAction(
   });
 
   if (error) {
-    // Erreur de sécurité générique pour ne pas fuiter l'existence du compte
     return { success: false, error: "L'inscription a échoué. L'adresse e-mail est peut-être déjà utilisée." };
   }
 
@@ -72,8 +108,68 @@ export async function registerAction(
     return { success: false, error: "Une erreur inattendue s'est produite." };
   }
 
+  const newUserId = data.user.id;
+
+  // 3. Traitement du matricule et vérification automatique côté serveur
+  if (rawMatricule) {
+    try {
+      // Chercher la fiche correspondante dans le registre
+      const { data: registryEntry } = await adminClient
+        .from("student_matricule_registry")
+        .select("id, matricule, verification_status, field_of_study")
+        .ilike("matricule", rawMatricule)
+        .maybeSingle();
+
+      const isVerified = registryEntry?.verification_status === "verified";
+      const now = new Date().toISOString();
+
+      // Mettre à jour le profil de l'étudiant
+      await adminClient
+        .from("profiles")
+        .update({
+          student_id: rawMatricule,
+          is_verified: isVerified,
+          department: registryEntry?.field_of_study || undefined,
+          updated_at: now,
+        })
+        .eq("id", newUserId);
+
+      if (registryEntry) {
+        // Associer la fiche du registre au nouvel utilisateur
+        await adminClient
+          .from("student_matricule_registry")
+          .update({
+            claimed_by_user_id: newUserId,
+            claimed_at: now,
+            updated_at: now,
+          })
+          .eq("id", registryEntry.id);
+      } else {
+        // Créer une fiche en attente dans le registre pour examen ultérieur par la scolarité
+        const parts = parsed.data.fullName.trim().split(" ");
+        const firstName = parts[0] || "Étudiant";
+        const lastName = parts.slice(1).join(" ") || "Inscrit";
+
+        await adminClient
+          .from("student_matricule_registry")
+          .insert({
+            first_name: firstName,
+            last_name: lastName,
+            full_name: parsed.data.fullName.trim(),
+            matricule: rawMatricule,
+            email: parsed.data.email,
+            verification_status: "pending",
+            claimed_by_user_id: newUserId,
+            claimed_at: now,
+          });
+      }
+    } catch (e) {
+      console.error("[register] Erreur lors de la liaison matricule :", e);
+    }
+  }
+
   revalidatePath("/", "layout");
-  return { success: true, data: { id: data.user.id } };
+  return { success: true, data: { id: newUserId } };
 }
 
 export async function logoutAction(): Promise<void> {

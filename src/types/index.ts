@@ -173,3 +173,29 @@ export interface AuditLog {
   ip_address: string | null;
   created_at: string;
 }
+
+/** Statut de vérification d'un matricule étudiant */
+export type MatriculeVerificationStatus = "pending" | "verified" | "rejected";
+
+/** Fiche du registre des matricules étudiants */
+export interface StudentMatriculeEntry {
+  id: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  matricule: string;
+  email: string;
+  field_of_study: string | null;
+  academic_level: string | null;
+  verification_status: MatriculeVerificationStatus;
+  rejection_reason: string | null;
+  claimed_by_user_id: string | null;
+  claimed_at: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  submitted_at: string;
+  created_at: string;
+  updated_at: string;
+  verifier?: Pick<UserProfile, "id" | "full_name"> | null;
+  claimed_profile?: Pick<UserProfile, "id" | "full_name" | "email"> | null;
+}
