@@ -25,6 +25,7 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
 
   const mockAdminClient = {
     from: vi.fn(),
+    rpc: vi.fn(),
   };
 
   return { mockServerClient, mockAdminClient };
@@ -36,6 +37,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({
+    get: (name: string) => name === "x-real-ip" ? "192.0.2.10" : null,
+  }),
+}));
 vi.mock("@/lib/notifications/send", () => ({
   sendNotification: vi.fn().mockResolvedValue(undefined),
 }));
@@ -54,6 +60,9 @@ const VALID_UUID_2 = "550e8400-e29b-41d4-a716-446655440002";
 describe("Matricule Actions — Soumission et Vérification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "vitest-server-only-test-key";
+    mockServerClient.auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
+    mockAdminClient.rpc.mockResolvedValue({ data: true, error: null });
   });
 
   // -------------------------------------------------------------------------
@@ -65,7 +74,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         firstName: "Jean",
         lastName: "Dupont",
         matricule: "ESCAE-2024-001",
-        email: "jean.dupont@example.com",
+        email: "jean.dupont@gmail.com",
         fieldOfStudy: "Génie Logiciel",
         website: "http://spam-bot.com", // honeypot
       });
@@ -113,7 +122,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         firstName: "Jean",
         lastName: "Dupont",
         matricule: "escae-2024-001",
-        email: "jean@example.com",
+        email: "jean@gmail.com",
         fieldOfStudy: "Informatique",
       });
 
@@ -161,7 +170,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         firstName: "Awa",
         lastName: "Koffi",
         matricule: "escae-2024-999",
-        email: "awa.koffi@etud.escae.bj",
+        email: "awa.koffi@gmail.com",
         fieldOfStudy: "Marketing Digital",
         academicLevel: "Licence 2",
       });
@@ -173,6 +182,8 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(insertedData.last_name).toBe("Koffi");
       expect(insertedData.full_name).toBe("Awa Koffi");
       expect(insertedData.verification_status).toBe("pending"); // Ne doit pas être vérifié auto !
+      expect(insertedData.claimed_by_user_id).toBeNull();
+      expect(mockAdminClient.from).not.toHaveBeenCalledWith("profiles");
     });
   });
 
@@ -233,7 +244,6 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       });
 
       let updatedRegistryPayload: any = {};
-      let updatedProfilePayload: any = null;
 
       mockAdminClient.from.mockImplementation((table: string) => {
         if (table === "student_matricule_registry") {
@@ -260,16 +270,6 @@ describe("Matricule Actions — Soumission et Vérification", () => {
             }),
           };
         }
-        if (table === "profiles") {
-          return {
-            update: vi.fn().mockImplementation((payload: any) => {
-              updatedProfilePayload = payload;
-              return {
-                eq: vi.fn().mockResolvedValue({ error: null }),
-              };
-            }),
-          };
-        }
         if (table === "audit_logs") {
           return {
             insert: vi.fn().mockResolvedValue({ error: null }),
@@ -282,7 +282,10 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(result.success).toBe(true);
       expect(updatedRegistryPayload.verification_status).toBe("verified");
       expect(updatedRegistryPayload.verified_by).toBe("admin-1");
-      expect(updatedProfilePayload.is_verified).toBe(true);
+      expect(mockAdminClient.rpc).toHaveBeenCalledWith("claim_student_matricule", {
+        p_user_id: "user-student-789",
+        p_matricule: "ESCAE-2024-555",
+      });
     });
 
     it("doit rejeter le matricule avec un motif explicite", async () => {

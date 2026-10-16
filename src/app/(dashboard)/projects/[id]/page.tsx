@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 
 export const dynamic = "force-dynamic";
 import Link from "next/link";
-import { submitProjectAction } from "../actions";
+import { SubmitProjectButton } from "@/components/forms/SubmitProjectButton";
 import { DocumentUploadForm } from "@/components/forms/DocumentUploadForm";
 import { RemoveDocumentButton } from "@/components/forms/RemoveDocumentButton";
 import { DownloadPdfButton } from "@/components/pdf/DownloadPdfButton";
@@ -59,12 +59,6 @@ export default async function ProjectDetailsPage({
   const isOwner = project.owner_id === user.id;
   const isDraft = project.status === "draft";
 
-  // Action liée au bouton "Soumettre le projet"
-  const submitProject = async () => {
-    "use server";
-    await submitProjectAction(project.id);
-  };
-
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-6 flex items-center gap-4">
@@ -93,11 +87,7 @@ export default async function ProjectDetailsPage({
             className="rounded-lg border border-white/15 px-3.5 py-2 text-xs sm:text-sm font-medium text-white/60 transition-all hover:border-white/30 hover:text-white"
           />
           {isOwner && isDraft && (
-            <form action={submitProject}>
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-xs sm:text-sm px-4 py-2">
-                Soumettre définitivement
-              </Button>
-            </form>
+            <SubmitProjectButton projectId={project.id} />
           )}
         </div>
       </div>

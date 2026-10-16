@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -8,7 +9,11 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type");
   const error = searchParams.get("error");
   const error_description = searchParams.get("error_description");
-  const next = searchParams.get("next") ?? "/auth/confirmed";
+  const requestedNext = searchParams.get("next") ?? "/auth/confirmed";
+  // N'accepter qu'un chemin local pour éviter les redirections externes après connexion.
+  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.includes("\\")
+    ? requestedNext
+    : "/auth/confirmed";
 
   // Si Supabase renvoie une erreur directe
   if (error) {
@@ -20,8 +25,7 @@ export async function GET(request: NextRequest) {
 
   // 1. Échange du code PKCE ou vérification token_hash (OTP email)
   if (code || (token_hash && type)) {
-    const redirectUrl = new URL(next, origin);
-    const response = NextResponse.redirect(redirectUrl);
+    const response = NextResponse.redirect(new URL(next, origin));
 
     const supabasePublicKey =
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
@@ -44,12 +48,12 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    let authenticated = false;
+    let exchangeSucceeded = false;
 
     if (code) {
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
       if (!exchangeError) {
-        authenticated = true;
+        exchangeSucceeded = true;
       }
     } else if (token_hash && type) {
       const { error: verifyError } = await supabase.auth.verifyOtp({
@@ -57,47 +61,62 @@ export async function GET(request: NextRequest) {
         type: type as any,
       });
       if (!verifyError) {
-        authenticated = true;
+        exchangeSucceeded = true;
       }
     }
 
-    if (authenticated) {
-      // Déterminer la redirection optimale selon le rôle
-      let destination = next;
-
-      // Si type=invite ou si next pointe vers le confirmed par défaut, orienter vers admin
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .single();
-
-          if (profile?.role === "admin" || type === "invite") {
-            destination = "/admin/profile/complete";
-          } else if (profile?.role === "director") {
-            destination = "/admin";
+    if (exchangeSucceeded) {
+      // L'échange du code seul ne suffit pas : valider la session côté serveur.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        if (type === "invite" || type === "recovery") {
+          const admin = (await import("@/lib/supabase/server")).createSupabaseAdminClient();
+          const { data: invitationAccepted, error: invitationError } = await admin.rpc(
+            "accept_admin_invitation",
+            { p_user_id: user.id },
+          );
+          if (invitationError || invitationAccepted !== true) {
+            await supabase.auth.signOut();
+            response.headers.set("Location", new URL(
+              `/auth/login?error=${encodeURIComponent("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.")}`,
+              origin,
+            ).toString());
+            return response;
           }
         }
-      } catch {
-        // En cas d'erreur de lecture du profil, conserver 'next'
+
+        // The database procedure independently checks email confirmation and performs
+        // the claim atomically. Failures leave the account active but unverified.
+        if (user.email_confirmed_at && user.user_metadata?.student_id) {
+          await claimCollectedMatricule(user.id, user.user_metadata.student_id);
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (!profileError && profile?.role) {
+          const destination = profile.role === "admin"
+            ? "/admin/profile/complete"
+            : profile.role === "director"
+              ? "/admin"
+              : "/dashboard";
+
+          // Conserver la même réponse qui a reçu les cookies Supabase, sans en perdre les options.
+          response.headers.set("Location", new URL(destination, origin).toString());
+          return response;
+        }
       }
-
-      const finalRedirectUrl = new URL(destination, origin);
-      const successResponse = NextResponse.redirect(finalRedirectUrl);
-
-      // Copier les cookies vers la réponse finale
-      response.cookies.getAll().forEach((c) => {
-        successResponse.cookies.set(c.name, c.value);
-      });
-
-      return successResponse;
     }
 
+    // Lien invalide ou expiré : message explicite
+    const errParam = type === "invite"
+      ? "Lien d'invitation expiré ou déjà utilisé. Contactez le directeur pour une nouvelle invitation."
+      : "Lien de confirmation invalide ou expiré. Veuillez réessayer depuis votre email.";
     return NextResponse.redirect(
-      new URL("/auth/login?error=Lien invalide ou expiré", origin)
+      new URL(`/auth/login?error=${encodeURIComponent(errParam)}`, origin)
     );
   }
 

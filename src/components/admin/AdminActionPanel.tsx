@@ -42,6 +42,10 @@ function getActions(status: ProjectStatus, role: string): ActionDef[] {
     actions.push({ label: "Reprendre la vérification", newStatus: "admin_review", variant: "primary" });
   }
 
+  if (status === "under_re_examination" && isStaff) {
+    actions.push({ label: "Reprendre l'évaluation", newStatus: "under_review", variant: "primary" });
+  }
+
   if (status === "under_review" && isStaff) {
     actions.push({ label: "Démarrer l'évaluation jury", newStatus: "jury_evaluation", variant: "primary" });
   }

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { completeAdminInvitationAction, completeStudentMatriculeClaimAction } from "@/app/(auth)/actions";
 
 export default function ConfirmedPage() {
   const router = useRouter();
@@ -33,6 +33,20 @@ export default function ConfirmedPage() {
 
     async function checkAuth() {
       try {
+        const finishAuthenticatedUser = async (user: { id: string; email?: string; email_confirmed_at?: string | null }) => {
+          await completeStudentMatriculeClaimAction();
+          const inviteLink = typeof window !== "undefined" && window.location.hash.includes("type=invite");
+          const invitation = await completeAdminInvitationAction();
+          if (inviteLink && !invitation.accepted) {
+            setErrorMessage("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.");
+            setStatus("error");
+            return;
+          }
+          setUserEmail(user.email ?? null);
+          if (invitation.accepted) setUserRole(invitation.role);
+          else loadRole(user.id);
+          setStatus("success");
+        };
         // 1. Vérifier si un hash d'erreur est présent
         if (typeof window !== "undefined" && window.location.hash) {
           const params = new URLSearchParams(window.location.hash.replace("#", ""));
@@ -54,11 +68,7 @@ export default function ConfirmedPage() {
         }
 
         if (session?.user) {
-          if (isMounted) {
-            setUserEmail(session.user.email ?? null);
-            setStatus("success");
-            loadRole(session.user.id);
-          }
+          if (isMounted) await finishAuthenticatedUser(session.user);
           return;
         }
 
@@ -66,10 +76,7 @@ export default function ConfirmedPage() {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, currentSession) => {
             if (currentSession?.user) {
-              if (isMounted) {
-                setUserEmail(currentSession.user.email ?? null);
-                setStatus("success");
-              }
+              if (isMounted) await finishAuthenticatedUser(currentSession.user);
             }
           }
         );
@@ -79,11 +86,11 @@ export default function ConfirmedPage() {
           if (!isMounted) return;
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            setUserEmail(user.email ?? null);
-            setStatus("success");
+            await finishAuthenticatedUser(user);
           } else {
-            // Si toujours aucune session trouvée
-            setStatus("success"); // On permet quand même l'accès, le middleware ou la page suivante guidera
+            // Aucune session trouvée après délai : c'est une erreur réelle
+            setErrorMessage("Votre session n'a pas pu être créée. Le lien est peut-être expiré ou déjà utilisé.");
+            setStatus("error");
           }
         }, 2000);
 
@@ -200,12 +207,20 @@ export default function ConfirmedPage() {
 
         {status === "error" && (
           <div className="flex flex-col gap-4">
-            <Link
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">
+              <p className="font-semibold">Que faire si le lien est expiré ?</p>
+              <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-amber-200/70">
+                <li>Contactez le directeur pour qu&apos;il vous envoie une nouvelle invitation.</li>
+                <li>Chaque lien est usage unique et expire après 24 heures.</li>
+                <li>Assurez-vous d&apos;utiliser le dernier email reçu.</li>
+              </ul>
+            </div>
+            <a
               href="/auth/login"
               className="flex w-full items-center justify-center rounded-lg bg-white/10 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
             >
               Aller à la page de connexion
-            </Link>
+            </a>
           </div>
         )}
       </div>

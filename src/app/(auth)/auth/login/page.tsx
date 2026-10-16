@@ -4,7 +4,12 @@ import { LoginForm } from "@/components/forms/LoginForm";
 
 export const metadata: Metadata = { title: "Connexion" };
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl">
       {/* En-tête de la carte */}
@@ -19,7 +24,7 @@ export default function LoginPage() {
       </div>
       {/* Formulaire */}
       <div className="px-8 py-6">
-        <LoginForm />
+        <LoginForm initialError={error} />
         <div className="mt-6 text-center text-sm text-white/30">
           Pas encore de compte ?{" "}
           <Link href="/auth/register" className="font-semibold text-[#05F228] hover:underline">

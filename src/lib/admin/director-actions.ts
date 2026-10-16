@@ -74,24 +74,22 @@ export async function submitDirectorDecisionAction(
     };
   }
 
-  // Mise à jour du statut
-  const { error: updateError } = await supabase
-    .from("projects")
-    .update({ status: decision })
-    .eq("id", projectId);
-
-  if (updateError) {
-    return { success: false, error: "Erreur lors de la mise à jour du statut." };
+  const { data: transitioned, error: transitionError } = await supabase.rpc(
+    "transition_project_status",
+    {
+      p_project_id: projectId,
+      p_expected_status: "director_validation",
+      p_new_status: decision,
+      p_comment: comment.trim(),
+    },
+  );
+  if (transitionError) {
+    console.error("submitDirectorDecisionAction transition error:", transitionError);
+    return { success: false, error: "La décision et son historique n'ont pas pu être enregistrés." };
   }
-
-  // Historique
-  await supabase.from("status_history").insert({
-    project_id: projectId,
-    from_status: "director_validation",
-    to_status: decision,
-    changed_by: user.id,
-    comment: comment.trim(),
-  });
+  if (transitioned !== true) {
+    return { success: false, error: "Le statut a changé ou cette décision n'est pas autorisée. Actualisez la page." };
+  }
 
   // Notification à l'étudiant
   let notifTitle = "";

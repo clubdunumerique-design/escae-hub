@@ -1,13 +1,15 @@
 "use server";
 
-import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
 import { loginSchema, registerSchema } from "@/lib/validations/auth";
 import type { ApiResponse } from "@/types";
 import { revalidatePath } from "next/cache";
+import { getPublicAppUrl } from "@/lib/config/app-url";
 
 export async function loginAction(
   formData: FormData
-): Promise<ApiResponse<{ id: string }>> {
+): Promise<ApiResponse<{ id: string; role: string }>> {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
@@ -26,8 +28,21 @@ export async function loginAction(
     return { success: false, error: "Identifiants incorrects." };
   }
 
+  // Lire le rôle depuis la table profiles côté serveur
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, student_id")
+    .eq("id", data.user.id)
+    .single();
+
+  // Re-tenter la correspondance pour les comptes confirmés, y compris les anciens comptes.
+  const candidateMatricule = data.user.user_metadata?.student_id ?? profile?.student_id;
+  if (data.user.email_confirmed_at && candidateMatricule) {
+    await claimCollectedMatricule(data.user.id, candidateMatricule);
+  }
+
   revalidatePath("/", "layout");
-  return { success: true, data: { id: data.user.id } };
+  return { success: true, data: { id: data.user.id, role: profile?.role ?? "student" } };
 }
 
 export async function registerAction(
@@ -51,39 +66,10 @@ export async function registerAction(
     return { success: false, error: parsed.error.errors[0]?.message || "Veuillez vérifier les champs du formulaire." };
   }
 
-  const adminClient = createSupabaseAdminClient();
-  const rawMatricule = parsed.data.studentId?.trim().toUpperCase();
-
-  // 1. Contrôle anti-usurpation préalable du matricule
-  if (rawMatricule) {
-    // Vérifier si un compte profil possède déjà ce matricule
-    const { data: profileWithMatricule } = await adminClient
-      .from("profiles")
-      .select("id, email")
-      .ilike("student_id", rawMatricule)
-      .maybeSingle();
-
-    if (profileWithMatricule) {
-      return {
-        success: false,
-        error: "Ce matricule étudiant est déjà associé à un compte utilisateur. Contactez la scolarité en cas de litige.",
-      };
-    }
-
-    // Vérifier si la fiche dans le registre est déjà réclamée par un autre utilisateur
-    const { data: registryClaimed } = await adminClient
-      .from("student_matricule_registry")
-      .select("id, claimed_by_user_id")
-      .ilike("matricule", rawMatricule)
-      .not("claimed_by_user_id", "is", null)
-      .maybeSingle();
-
-    if (registryClaimed) {
-      return {
-        success: false,
-        error: "Ce matricule étudiant est déjà réclamé. Contactez l'administration.",
-      };
-    }
+  const rawMatricule = parsed.data.studentId?.trim().toUpperCase() || null;
+  const appUrl = getPublicAppUrl();
+  if (!appUrl) {
+    return { success: false, error: "Le service d'inscription n'est pas configuré correctement. Contactez le support." };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -95,8 +81,9 @@ export async function registerAction(
     options: {
       data: {
         full_name: parsed.data.fullName,
+        student_id: rawMatricule,
       },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/auth/confirmed`,
+      emailRedirectTo: `${appUrl}/auth/callback?next=/auth/confirmed`,
     },
   });
 
@@ -110,62 +97,10 @@ export async function registerAction(
 
   const newUserId = data.user.id;
 
-  // 3. Traitement du matricule et vérification automatique côté serveur
-  if (rawMatricule) {
-    try {
-      // Chercher la fiche correspondante dans le registre
-      const { data: registryEntry } = await adminClient
-        .from("student_matricule_registry")
-        .select("id, matricule, verification_status, field_of_study")
-        .ilike("matricule", rawMatricule)
-        .maybeSingle();
-
-      const isVerified = registryEntry?.verification_status === "verified";
-      const now = new Date().toISOString();
-
-      // Mettre à jour le profil de l'étudiant
-      await adminClient
-        .from("profiles")
-        .update({
-          student_id: rawMatricule,
-          is_verified: isVerified,
-          department: registryEntry?.field_of_study || undefined,
-          updated_at: now,
-        })
-        .eq("id", newUserId);
-
-      if (registryEntry) {
-        // Associer la fiche du registre au nouvel utilisateur
-        await adminClient
-          .from("student_matricule_registry")
-          .update({
-            claimed_by_user_id: newUserId,
-            claimed_at: now,
-            updated_at: now,
-          })
-          .eq("id", registryEntry.id);
-      } else {
-        // Créer une fiche en attente dans le registre pour examen ultérieur par la scolarité
-        const parts = parsed.data.fullName.trim().split(" ");
-        const firstName = parts[0] || "Étudiant";
-        const lastName = parts.slice(1).join(" ") || "Inscrit";
-
-        await adminClient
-          .from("student_matricule_registry")
-          .insert({
-            first_name: firstName,
-            last_name: lastName,
-            full_name: parsed.data.fullName.trim(),
-            matricule: rawMatricule,
-            email: parsed.data.email,
-            verification_status: "pending",
-            claimed_by_user_id: newUserId,
-            claimed_at: now,
-          });
-      }
-    } catch (e) {
-      console.error("[register] Erreur lors de la liaison matricule :", e);
-    }
+  // Les comptes avec confirmation automatique activée suivent aussi le contrôle atomique.
+  // Sinon, la tentative est effectuée après confirmation dans /auth/callback.
+  if (data.user.email_confirmed_at && rawMatricule) {
+    await claimCollectedMatricule(newUserId, rawMatricule);
   }
 
   revalidatePath("/", "layout");
@@ -176,6 +111,30 @@ export async function logoutAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
+}
+
+/** Retry the automatic match after client-side confirmation flows establish a session. */
+export async function completeStudentMatriculeClaimAction(): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email_confirmed_at) return;
+
+  const candidateMatricule = user.user_metadata?.student_id;
+  if (candidateMatricule) {
+    await claimCollectedMatricule(user.id, candidateMatricule);
+  }
+}
+
+/** Accept a pending director-issued invitation only from its confirmed email session. */
+export async function completeAdminInvitationAction(): Promise<{ accepted: boolean; role: string | null }> {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email_confirmed_at) return { accepted: false, role: null };
+
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.rpc("accept_admin_invitation", { p_user_id: user.id });
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  return { accepted: !error && data === true && profile?.role === "admin", role: profile?.role ?? null };
 }
 
 export async function verifyOtpAction(
@@ -197,6 +156,11 @@ export async function verifyOtpAction(
 
   if (error) {
     return { success: false, error: "Code invalide ou expiré." };
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user?.email_confirmed_at && user.user_metadata?.student_id) {
+    await claimCollectedMatricule(user.id, user.user_metadata.student_id);
   }
 
   revalidatePath("/", "layout");
@@ -232,9 +196,14 @@ export async function forgotPasswordAction(
     return { success: false, error: "L'adresse e-mail est requise." };
   }
 
+  const appUrl = getPublicAppUrl();
+  if (!appUrl) {
+    return { success: false, error: "Le service de récupération n'est pas configuré correctement. Contactez le support." };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
+    redirectTo: `${appUrl}/auth/reset-password`,
   });
 
   if (error) {

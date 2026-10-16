@@ -101,18 +101,22 @@ export async function submitEvaluationAction(
 
   // Si le projet est encore "under_review", le passer automatiquement à "jury_evaluation"
   if (project.status === "under_review") {
-    await supabase
-      .from("projects")
-      .update({ status: "jury_evaluation" })
-      .eq("id", projectId);
-
-    await supabase.from("status_history").insert({
-      project_id: projectId,
-      from_status: "under_review",
-      to_status: "jury_evaluation",
-      changed_by: user.id,
-      comment: "Première évaluation soumise.",
+    const { data: transitioned, error: transitionError } = await supabase.rpc("transition_project_status", {
+      p_project_id: projectId,
+      p_expected_status: "under_review",
+      p_new_status: "jury_evaluation",
+      p_comment: "Première évaluation soumise.",
     });
+    if (transitionError) {
+      console.error("submitEvaluationAction transition error:", transitionError);
+      return { success: false, error: "L'évaluation est enregistrée, mais le passage au jury n'a pas pu être historisé. Réessayez." };
+    }
+    if (transitioned !== true) {
+      const { data: latest } = await supabase.from("projects").select("status").eq("id", projectId).single();
+      if (latest?.status !== "jury_evaluation") {
+        return { success: false, error: "L'évaluation est enregistrée, mais le projet n'a pas pu passer au jury. Actualisez la page." };
+      }
+    }
   }
 
   revalidatePath(`/admin/projects/${projectId}`);

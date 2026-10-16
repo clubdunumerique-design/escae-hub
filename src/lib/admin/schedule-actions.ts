@@ -100,18 +100,22 @@ export async function schedulePresentationAction(
 
   // Si le statut était accepted_for_presentation, on peut le passer en scheduling
   if (project.status === "accepted_for_presentation") {
-    await supabase
-      .from("projects")
-      .update({ status: "scheduling" })
-      .eq("id", projectId);
-
-    await supabase.from("status_history").insert({
-      project_id: projectId,
-      from_status: "accepted_for_presentation",
-      to_status: "scheduling",
-      changed_by: user.id,
-      comment: "Planification de la soutenance initialisée.",
+    const { data: transitioned, error: transitionError } = await supabase.rpc("transition_project_status", {
+      p_project_id: projectId,
+      p_expected_status: "accepted_for_presentation",
+      p_new_status: "scheduling",
+      p_comment: "Planification de la soutenance initialisée.",
     });
+    if (transitionError) {
+      console.error("schedulePresentationAction transition error:", transitionError);
+      return { success: false, error: "La planification est sauvegardée, mais le changement de statut n'a pas été historisé. Réessayez." };
+    }
+    if (transitioned !== true) {
+      const { data: latest } = await supabase.from("projects").select("status").eq("id", projectId).single();
+      if (latest?.status !== "scheduling") {
+        return { success: false, error: "La planification est sauvegardée, mais le projet n'a pas pu passer au statut prévu. Actualisez la page." };
+      }
+    }
   }
 
   // Notification à l'étudiant

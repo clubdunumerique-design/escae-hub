@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { loginAction } from "@/app/(auth)/actions";
 
-export function LoginForm() {
-  const [error, setError] = useState<string | null>(null);
+export function LoginForm({ initialError }: { initialError?: string }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(initialError ?? null);
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -15,7 +17,18 @@ export function LoginForm() {
     const formData = new FormData(event.currentTarget);
     try {
       const response = await loginAction(formData);
-      if (!response.success) setError(response.error);
+      if (response.success) {
+        // Rediriger vers l'espace approprié selon le rôle (vérifié côté serveur)
+        const role = response.data.role;
+        if (role === "admin" || role === "director") {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
+        router.refresh();
+      } else {
+        setError(response.error);
+      }
     } catch {
       setError("Une erreur inattendue est survenue.");
     } finally {

@@ -71,10 +71,40 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Bloquer les routes de projets côté serveur pour tous les rôles non étudiants.
+  // Les Server Actions et RLS appliquent leurs propres contrôles indépendants.
+  if (user && request.nextUrl.pathname.startsWith("/projects")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (profile?.role !== "student") {
+      const url = request.nextUrl.clone();
+      url.pathname = profile?.role === "admin" || profile?.role === "director"
+        ? "/admin"
+        : "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (isGuestOnlyRoute && user) {
-    // Redirection vers le tableau de bord si déjà authentifié
+    // Redirection vers l'espace approprié selon le rôle
+    let roleHomePath = "/dashboard";
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (profileData?.role === "admin" || profileData?.role === "director") {
+        roleHomePath = "/admin";
+      }
+    } catch {
+      // En cas d'erreur de lecture du profil, conserver /dashboard par défaut
+    }
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = roleHomePath;
     return NextResponse.redirect(url);
   }
 

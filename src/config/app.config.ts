@@ -13,7 +13,7 @@ export const APP_CONFIG = {
   description: "Plateforme de soumission et d'évaluation de projets étudiants — ESCAE-BÉNIN",
   version: "0.1.0",
   // [PROVISOIRE] URL canonique — à définir lors du déploiement
-  url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  url: process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:3000",
 } as const;
 
 // --- Stockage Supabase ---

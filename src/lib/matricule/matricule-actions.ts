@@ -12,6 +12,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ApiResponse, MatriculeVerificationStatus, StudentMatriculeEntry } from "@/types";
 import { sendNotification } from "@/lib/notifications/send";
+import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
+import { createHmac } from "node:crypto";
+import { headers } from "next/headers";
 
 // ---------------------------------------------------------------------------
 // Schémas de validation
@@ -34,7 +37,8 @@ const publicMatriculeSubmissionSchema = z.object({
     .max(30, "Le matricule ne doit pas dépasser 30 caractères.")
     .regex(/^[A-Za-z0-9\-_./]+$/, "Format de matricule invalide (caractères alphanumériques autorisés).")
     .trim(),
-  email: z.string().email("Adresse email invalide.").trim().toLowerCase(),
+  email: z.string().email("Adresse email invalide.").trim().toLowerCase()
+    .refine((value) => value.endsWith("@gmail.com"), "Veuillez utiliser une adresse Gmail."),
   fieldOfStudy: z.string().max(100).optional(),
   academicLevel: z.string().max(50).optional(),
   honeypot: z.string().max(0, "Tentative de spam détectée.").optional(),
@@ -154,15 +158,55 @@ export async function submitStudentMatriculeAction(
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
   const adminClient = createSupabaseAdminClient();
+  const sessionClient = await createSupabaseServerClient();
+  const { data: { user: signedInUser } } = await sessionClient.auth.getUser();
+
+  // Limit public submissions by a keyed IP hash; never store the raw address.
+  const requestHeaders = await headers();
+  const ipAddress = requestHeaders.get("x-real-ip")
+    ?? requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? "unknown";
+  const rateLimitKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!rateLimitKey) {
+    return { success: false, error: "Le service de collecte est temporairement indisponible." };
+  }
+  const ipHash = createHmac("sha256", rateLimitKey).update(ipAddress).digest("hex");
+  const { data: allowed, error: rateLimitError } = await adminClient.rpc(
+    "consume_public_matricule_rate_limit",
+    { p_ip_hash: ipHash },
+  );
+  if (rateLimitError || allowed !== true) {
+    return {
+      success: false,
+      error: rateLimitError
+        ? "Le service de collecte est temporairement indisponible."
+        : "Trop de demandes depuis cette connexion. Réessayez dans quelques minutes.",
+    };
+  }
 
   // 1. Vérifier si ce matricule existe déjà dans le registre
   const { data: existingEntry } = await adminClient
     .from("student_matricule_registry")
     .select("id, matricule, verification_status, email, claimed_by_user_id")
-    .ilike("matricule", normalizedMatricule)
+    .ilike("matricule", normalizedMatricule.replace(/[\\%_]/g, "\\$&"))
     .maybeSingle();
 
   if (existingEntry) {
+    if (signedInUser) {
+      const { matched } = await claimCollectedMatricule(signedInUser.id, normalizedMatricule);
+      if (matched) {
+        return {
+          success: true,
+          data: {
+            matricule: normalizedMatricule,
+            fullName,
+            status: existingEntry.verification_status,
+            isExistingUser: true,
+          },
+        };
+      }
+    }
+
     if (existingEntry.verification_status === "verified") {
       return {
         success: false,
@@ -174,8 +218,16 @@ export async function submitStudentMatriculeAction(
     if (existingEntry.verification_status === "pending") {
       return {
         success: false,
-        error: "Ce matricule a déjà été soumis et est actuellement en cours d'examen par la scolarité.",
+        error: "Ce matricule est déjà collecté. Utilisez les mêmes nom et Gmail lors de la création du compte, puis confirmez l'adresse pour tenter le rapprochement automatique.",
         code: "ALREADY_PENDING",
+      };
+    }
+
+    if (existingEntry.claimed_by_user_id) {
+      return {
+        success: false,
+        error: "Ce matricule est déjà associé à un compte et ne peut pas être remplacé.",
+        code: "ALREADY_CLAIMED",
       };
     }
 
@@ -211,16 +263,7 @@ export async function submitStudentMatriculeAction(
     };
   }
 
-  // 2. Vérifier si un compte étudiant existe déjà avec cet email sur la plateforme
-  const { data: existingProfile } = await adminClient
-    .from("profiles")
-    .select("id, role, student_id, is_verified")
-    .eq("email", email)
-    .maybeSingle();
-
-  const claimedByUserId = existingProfile?.id ?? null;
-
-  // 3. Insérer la nouvelle fiche dans le registre
+  // 2. Collecter la fiche sans lui associer un compte sur la base d'un email déclaré.
   const { data: newEntry, error: insertError } = await adminClient
     .from("student_matricule_registry")
     .insert({
@@ -232,8 +275,8 @@ export async function submitStudentMatriculeAction(
       field_of_study: fieldOfStudy ?? null,
       academic_level: academicLevel ?? null,
       verification_status: "pending",
-      claimed_by_user_id: claimedByUserId,
-      claimed_at: claimedByUserId ? new Date().toISOString() : null,
+      claimed_by_user_id: null,
+      claimed_at: null,
     })
     .select("id, verification_status")
     .single();
@@ -249,19 +292,7 @@ export async function submitStudentMatriculeAction(
     return { success: false, error: "Erreur lors de l'enregistrement de votre matricule." };
   }
 
-  // 4. Si l'étudiant est déjà inscrit sur Innovation Hub, associer son student_id
-  if (existingProfile && !existingProfile.student_id) {
-    await adminClient
-      .from("profiles")
-      .update({
-        student_id: normalizedMatricule,
-        department: fieldOfStudy || undefined,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existingProfile.id);
-  }
-
-  // 5. Journalisation d'audit (sans acteur connecté)
+  // 3. Journalisation d'audit (sans acteur connecté)
   await writeAuditLog({
     actorId: null,
     action: "student.matricule_submitted",
@@ -270,7 +301,7 @@ export async function submitStudentMatriculeAction(
     details: {
       matricule: normalizedMatricule,
       email,
-      is_claimed: !!claimedByUserId,
+      is_claimed: false,
     },
   });
 
@@ -282,7 +313,7 @@ export async function submitStudentMatriculeAction(
       matricule: normalizedMatricule,
       fullName,
       status: "pending",
-      isExistingUser: !!claimedByUserId,
+      isExistingUser: false,
     },
   };
 }
@@ -386,7 +417,8 @@ export async function approveMatriculeAction(
     return { success: false, error: "Erreur lors de la validation du matricule." };
   }
 
-  // 2. Si un compte étudiant est déjà lié ou a cet email, lui attribuer le statut vérifié
+  // 2. Tenter la correspondance automatique. Le RPC vérifie l'email confirmé,
+  // le nom, le matricule et l'absence de conflit sous verrou de ligne.
   let targetStudentId = entry.claimed_by_user_id;
 
   if (!targetStudentId) {
@@ -399,29 +431,21 @@ export async function approveMatriculeAction(
   }
 
   if (targetStudentId) {
-    await adminClient
-      .from("profiles")
-      .update({
-        is_verified: true,
-        student_id: entry.matricule,
-        updated_at: now,
-      })
-      .eq("id", targetStudentId);
-
-    // Mettre à jour le lien de réclamation si pas encore fait
-    await adminClient
-      .from("student_matricule_registry")
-      .update({ claimed_by_user_id: targetStudentId, claimed_at: now })
-      .eq("id", registryId);
-
-    // Notification in-app à l'étudiant
-    await sendNotification({
-      userId: targetStudentId,
-      type: "status_changed",
-      title: "✅ Statut étudiant vérifié",
-      message: `Votre matricule officiel (${entry.matricule}) a été validé par l'administration. Vous pouvez désormais soumettre des projets d'innovation.`,
-      linkUrl: "/dashboard",
+    const { data: matched, error: claimError } = await adminClient.rpc("claim_student_matricule", {
+      p_user_id: targetStudentId,
+      p_matricule: entry.matricule,
     });
+    if (claimError) {
+      console.error("[matricule] Échec de la correspondance après mise à jour du registre.");
+    } else if (matched === true) {
+      await sendNotification({
+        userId: targetStudentId,
+        type: "status_changed",
+        title: "✅ Matricule rapproché",
+        message: "Votre email confirmé, votre nom et votre matricule correspondent à la fiche collectée.",
+        linkUrl: "/dashboard",
+      });
+    }
   }
 
   // 3. Journal d'audit

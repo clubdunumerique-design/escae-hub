@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ApiResponse } from "@/types";
 import { sendNotification } from "@/lib/notifications/send";
+import { getPublicAppUrl } from "@/lib/config/app-url";
 
 // ---------------------------------------------------------------------------
 // Schémas de validation
@@ -130,6 +131,10 @@ export async function nominateAdminAction(
   }
 
   const { fullName, email, missionDescription } = parsed.data;
+  const appUrl = getPublicAppUrl();
+  if (!appUrl) {
+    return { success: false, error: "L'URL publique de la plateforme n'est pas configurée. Aucune invitation n'a été envoyée." };
+  }
   const adminClient = createSupabaseAdminClient();
 
   // 2a. Vérifier si un compte avec cet email existe déjà
@@ -176,20 +181,9 @@ export async function nominateAdminAction(
       };
     }
 
-    // Mettre à jour son rôle à 'admin' s'il n'est pas déjà admin
-    if (existingProfile.role !== "admin") {
-      const { error: roleError } = await adminClient
-        .from("profiles")
-        .update({ role: "admin", updated_at: new Date().toISOString() })
-        .eq("id", targetUserId);
-
-      if (roleError) {
-        return { success: false, error: "Erreur lors de la mise à jour du rôle." };
-      }
-    }
+    // Existing accounts are promoted only after redeeming an email link.
   } else {
     // Inviter un nouveau compte — utilise inviteUserByEmail pour envoyer le lien magique
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       email,
       {
@@ -221,12 +215,16 @@ export async function nominateAdminAction(
 
     targetUserId = inviteData.user.id;
 
-    // Mettre à jour le profil avec le nom complet et le rôle admin
-    // (garantit que l'élévation de privilège est effectuée exclusivement par le serveur du directeur)
-    await adminClient
+    // Keep the invited account at its default student role until the one-time
+    // invitation link is redeemed. The callback promotes it atomically.
+    const { error: invitedProfileError } = await adminClient
       .from("profiles")
-      .update({ full_name: fullName, role: "admin", updated_at: new Date().toISOString() })
+      .update({ full_name: fullName, updated_at: new Date().toISOString() })
       .eq("id", targetUserId);
+    if (invitedProfileError) {
+      await writeAuditLog({ actorId: user.id, action: "admin.invited_profile_update_failed", targetId: targetUserId, targetType: "profile" });
+      return { success: false, error: "L'invitation est partie, mais le profil n'a pas pu être préparé. Le lien reste inutilisable avant validation du mandat." };
+    }
   }
 
   // 3. Vérifier qu'il n'y a pas déjà un admin actif (contrainte métier : un seul à la fois)
@@ -259,11 +257,7 @@ export async function nominateAdminAction(
   if (appointmentError || !appointment) {
     // Nettoyage / compensation en cas d'échec partiel pour garantir l'intégrité
     try {
-      if (!existingAuthUser) {
-        // Nouveau compte : supprimer le compte Auth et le profil orphelins
-        await adminClient.auth.admin.deleteUser(targetUserId);
-        await adminClient.from("profiles").delete().eq("id", targetUserId);
-      } else if (originalRole && originalRole !== "admin") {
+      if (existingAuthUser && originalRole && originalRole !== "admin") {
         // Compte existant : rétablir son rôle d'origine
         await adminClient
           .from("profiles")
@@ -286,6 +280,22 @@ export async function nominateAdminAction(
       };
     }
     return { success: false, error: "Erreur lors de la création du mandat." };
+  }
+
+  if (existingAuthUser) {
+    // Supabase sends its recovery email to the existing account. The callback
+    // accepts this link only if the pending appointment is still valid.
+    const { error: emailError } = await adminClient.auth.resetPasswordForEmail(email, {
+      redirectTo: `${appUrl}/auth/callback?next=/admin/profile/complete`,
+    });
+    if (emailError) {
+      await adminClient.from("admin_appointments").update({
+        status: "revoked",
+        revocation_reason: "Échec d'envoi de l'email d'invitation",
+        updated_at: new Date().toISOString(),
+      }).eq("id", appointment.id);
+      return { success: false, error: "Le compte existe déjà, mais l'email sécurisé d'invitation n'a pas pu être envoyé." };
+    }
   }
 
   // 5. Journal d'audit
@@ -378,35 +388,17 @@ export async function closeAppointmentAction(
   }
 
   // Mettre à jour le mandat
-  const { error: updateError } = await adminClient
-    .from("admin_appointments")
-    .update({
-      status: "ended",
-      end_date: endDate,
-      revocation_reason: revocationReason ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", appointmentId);
+  const { data: finished, error: updateError } = await adminClient.rpc("finish_admin_appointment", {
+    p_actor_id: user.id,
+    p_appointment_id: appointmentId,
+    p_final_status: "ended",
+    p_end_date: endDate,
+    p_reason: revocationReason ?? null,
+  });
 
-  if (updateError) {
+  if (updateError || finished !== true) {
+    console.error("closeAppointmentAction failed:", updateError);
     return { success: false, error: "Erreur lors de la clôture du mandat." };
-  }
-
-  // Retirer le rôle admin → repasser à student
-  const { error: roleError } = await adminClient
-    .from("profiles")
-    .update({ role: "student", updated_at: new Date().toISOString() })
-    .eq("id", appointment.admin_id);
-
-  if (roleError) {
-    // Log l'erreur mais ne bloque pas (le mandat est déjà clos)
-    await writeAuditLog({
-      actorId: user.id,
-      action: "admin.role_revocation_failed",
-      targetId: appointment.admin_id,
-      targetType: "profile",
-      details: { appointmentId, error: roleError.message },
-    });
   }
 
   // Notification
@@ -416,19 +408,6 @@ export async function closeAppointmentAction(
     title: "Fin de votre mandat administrateur",
     message: `Votre mandat d'administrateur a été clôturé par ${director.full_name} le ${new Date(endDate).toLocaleDateString("fr-FR")}. Vos droits administratifs ont été retirés.`,
     linkUrl: "/dashboard",
-  });
-
-  // Journal
-  await writeAuditLog({
-    actorId: user.id,
-    action: "admin.appointment_closed",
-    targetId: appointmentId,
-    targetType: "admin_appointment",
-    details: {
-      admin_id: appointment.admin_id,
-      end_date: endDate,
-      revocation_reason: revocationReason,
-    },
   });
 
   revalidatePath("/admin");
@@ -450,12 +429,14 @@ export async function revokeAppointmentAction(
     return { success: false, error: "Seul le directeur peut révoquer un mandat.", code: "FORBIDDEN" };
   }
 
-  const appointmentId = formData.get("appointmentId") as string;
-  const revocationReason = (formData.get("revocationReason") as string) || null;
-
-  if (!appointmentId) {
-    return { success: false, error: "Identifiant de mandat requis." };
+  const parsed = closeAppointmentSchema.pick({ appointmentId: true, revocationReason: true }).safeParse({
+    appointmentId: formData.get("appointmentId"),
+    revocationReason: formData.get("revocationReason") || undefined,
+  });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0].message, code: "VALIDATION_ERROR" };
   }
+  const { appointmentId, revocationReason } = parsed.data;
 
   const adminClient = createSupabaseAdminClient();
 
@@ -475,25 +456,18 @@ export async function revokeAppointmentAction(
 
   const today = new Date().toISOString().split("T")[0];
 
-  const { error: updateError } = await adminClient
-    .from("admin_appointments")
-    .update({
-      status: "revoked",
-      end_date: today,
-      revocation_reason: revocationReason,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", appointmentId);
+  const { data: finished, error: updateError } = await adminClient.rpc("finish_admin_appointment", {
+    p_actor_id: user.id,
+    p_appointment_id: appointmentId,
+    p_final_status: "revoked",
+    p_end_date: today,
+    p_reason: revocationReason ?? null,
+  });
 
-  if (updateError) {
+  if (updateError || finished !== true) {
+    console.error("revokeAppointmentAction failed:", updateError);
     return { success: false, error: "Erreur lors de la révocation." };
   }
-
-  // Retirer les droits
-  await adminClient
-    .from("profiles")
-    .update({ role: "student", updated_at: new Date().toISOString() })
-    .eq("id", appointment.admin_id);
 
   await sendNotification({
     userId: appointment.admin_id,
@@ -501,14 +475,6 @@ export async function revokeAppointmentAction(
     title: "Révocation de vos droits administrateurs",
     message: `Vos droits d'administrateur ont été révoqués par ${director.full_name}.`,
     linkUrl: "/dashboard",
-  });
-
-  await writeAuditLog({
-    actorId: user.id,
-    action: "admin.appointment_revoked",
-    targetId: appointmentId,
-    targetType: "admin_appointment",
-    details: { admin_id: appointment.admin_id, revocation_reason: revocationReason },
   });
 
   revalidatePath("/admin");
@@ -913,6 +879,19 @@ export async function activateAdminAccountAction(
   const { appointmentId, fullName, department, password, startDate } = parsed.data;
   const adminClient = createSupabaseAdminClient();
 
+  const { data: appointment, error: appointmentLookupError } = await adminClient
+    .from("admin_appointments")
+    .select("id, status, invitation_accepted_at")
+    .eq("id", appointmentId)
+    .eq("admin_id", user.id)
+    .maybeSingle();
+  if (appointmentLookupError || !appointment) {
+    return { success: false, error: "Invitation introuvable pour ce compte." };
+  }
+  if (appointment.status !== "pending_acceptance" || !appointment.invitation_accepted_at) {
+    return { success: false, error: "Cette invitation n'est plus en attente d'activation." };
+  }
+
   // 1. Définir le mot de passe utilisateur dans Supabase Auth
   const { error: pwdError } = await adminClient.auth.admin.updateUserById(user.id, {
     password,
@@ -927,7 +906,7 @@ export async function activateAdminAccountAction(
   }
 
   // 2. Mettre à jour les informations du profil
-  await adminClient
+  const { error: profileUpdateError } = await adminClient
     .from("profiles")
     .update({
       full_name: fullName,
@@ -935,10 +914,13 @@ export async function activateAdminAccountAction(
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);
+  if (profileUpdateError) {
+    return { success: false, error: "Le mot de passe est défini, mais le profil n'a pas pu être enregistré. Réessayez." };
+  }
 
   // 3. Activer le mandat d'administrateur
   const today = startDate || new Date().toISOString().split("T")[0];
-  const { error: apptError } = await adminClient
+  const { data: activatedAppointment, error: apptError } = await adminClient
     .from("admin_appointments")
     .update({
       status: "active",
@@ -947,12 +929,15 @@ export async function activateAdminAccountAction(
       updated_at: new Date().toISOString(),
     })
     .eq("id", appointmentId)
-    .eq("admin_id", user.id);
+    .eq("admin_id", user.id)
+    .eq("status", "pending_acceptance")
+    .select("id")
+    .maybeSingle();
 
-  if (apptError) {
+  if (apptError || !activatedAppointment) {
     if (
-      apptError.message?.includes("seul administrateur") ||
-      apptError.message?.includes("idx_admin_appointments_single_active")
+      apptError?.message?.includes("seul administrateur") ||
+      apptError?.message?.includes("idx_admin_appointments_single_active")
     ) {
       return {
         success: false,

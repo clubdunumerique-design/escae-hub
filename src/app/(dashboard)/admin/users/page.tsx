@@ -128,11 +128,7 @@ export default async function AdminUsersPage() {
                   const canVerify = ["admin", "director"].includes(callerProfile?.role ?? "");
                   const isCallerDirector = callerProfile?.role === "director";
 
-                  // Server Actions : vérification
-                  const verifyAction = async () => {
-                    "use server";
-                    await verifyStudentAction(profile.id, true);
-                  };
+                  // Server Action : révoquer un rapprochement existant.
                   const unverifyAction = async () => {
                     "use server";
                     await verifyStudentAction(profile.id, false);
@@ -182,12 +178,12 @@ export default async function AdminUsersPage() {
                         ) : profile.is_verified ? (
                           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#05F228]">
                             <span className="h-1.5 w-1.5 rounded-full bg-[#05F228]" />
-                            Vérifié
+                            Données rapprochées
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-400">
                             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                            En attente
+                            Non rapproché
                           </span>
                         )}
                       </td>
@@ -213,15 +209,7 @@ export default async function AdminUsersPage() {
                                 </button>
                               </form>
                             ) : (
-                              <form action={verifyAction}>
-                                <button
-                                  type="submit"
-                                  id={`verify-${profile.id}`}
-                                  className="rounded-lg bg-[#03A61C]/20 px-3 py-1.5 text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/40"
-                                >
-                                  Vérifier ✓
-                                </button>
-                              </form>
+                              <span className="text-xs text-white/30">Rapprochement automatique</span>
                             )
                           )}
 

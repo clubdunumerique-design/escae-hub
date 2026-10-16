@@ -35,6 +35,7 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
   };
 
   const mockAdminClient = {
+    rpc: vi.fn(),
     auth: {
       admin: {
         listUsers: vi.fn(),
@@ -312,10 +313,7 @@ describe("closeAppointmentAction", () => {
   // TC-08 : La clôture retire les droits administratifs
   it("TC-08 : la clôture d'un mandat retire les droits administratifs", async () => {
     setupDirectorSession("dir-001");
-
-    const profileUpdateSpy = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    });
+    mockAdminClient.rpc.mockResolvedValue({ data: true, error: null });
 
     // Flag pour différencier SELECT (premier appel) vs UPDATE (deuxième appel)
     let apptSelected = false;
@@ -346,9 +344,6 @@ describe("closeAppointmentAction", () => {
           }),
         };
       }
-      if (table === "profiles") {
-        return { update: profileUpdateSpy };
-      }
       // audit_logs et notifications
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
@@ -363,10 +358,10 @@ describe("closeAppointmentAction", () => {
     const result = await closeAppointmentAction(fd);
 
     expect(result.success).toBe(true);
-    // Le rôle doit avoir été rétrogradé à 'student'
-    expect(profileUpdateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ role: "student" })
-    );
+    expect(mockAdminClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
+      p_actor_id: "dir-001", p_appointment_id: VALID_APPT_UUID,
+      p_final_status: "ended", p_end_date: "2026-10-15",
+    }));
   });
 
 
@@ -396,10 +391,12 @@ describe("closeAppointmentAction", () => {
 // ---------------------------------------------------------------------------
 describe("revokeAppointmentAction", () => {
   beforeEach(() => vi.clearAllMocks());
+  const VALID_APPT_UUID = "550e8400-e29b-41d4-a716-446655440001";
 
   // TC-08c : Révocation réussie par le directeur
   it("TC-08c : le directeur peut révoquer un mandat actif", async () => {
     setupDirectorSession("dir-001");
+    mockAdminClient.rpc.mockResolvedValue({ data: true, error: null });
 
     let apptCallCount = 0;
     mockAdminClient.from.mockImplementation((table: string) => {
@@ -410,7 +407,7 @@ describe("revokeAppointmentAction", () => {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 single: vi.fn().mockResolvedValue({
-                  data: { id: "appt-001", admin_id: "admin-001", status: "active" },
+                  data: { id: VALID_APPT_UUID, admin_id: "admin-001", status: "active" },
                   error: null,
                 }),
               }),
@@ -433,18 +430,18 @@ describe("revokeAppointmentAction", () => {
       return { insert: vi.fn().mockResolvedValue({ error: null }) };
     });
 
-    const fd = makeFormData({ appointmentId: "appt-001" });
+    const fd = makeFormData({ appointmentId: VALID_APPT_UUID });
     const result = await revokeAppointmentAction(fd);
     expect(result.success).toBe(true);
+    expect(mockAdminClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
+      p_actor_id: "dir-001", p_appointment_id: VALID_APPT_UUID, p_final_status: "revoked",
+    }));
   });
 
   // TC-09 : L'historique de l'ancien titulaire est conservé (statut 'revoked', pas supprimé)
   it("TC-09 : la révocation ne supprime pas l'enregistrement — statut 'revoked' préservé", async () => {
     setupDirectorSession("dir-001");
-
-    const updateSpy = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    });
+    mockAdminClient.rpc.mockResolvedValue({ data: true, error: null });
 
     let apptCount = 0;
     mockAdminClient.from.mockImplementation((table: string) => {
@@ -455,14 +452,14 @@ describe("revokeAppointmentAction", () => {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 single: vi.fn().mockResolvedValue({
-                  data: { id: "appt-001", admin_id: "admin-001", status: "active" },
+                  data: { id: VALID_APPT_UUID, admin_id: "admin-001", status: "active" },
                   error: null,
                 }),
               }),
             }),
           };
         }
-        return { update: updateSpy };
+        return {};
       }
       return {
         update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
@@ -470,13 +467,12 @@ describe("revokeAppointmentAction", () => {
       };
     });
 
-    const fd = makeFormData({ appointmentId: "appt-001" });
-    await revokeAppointmentAction(fd);
-
-    // L'update doit positionner status='revoked', jamais DELETE
-    expect(updateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "revoked" })
-    );
+    const fd = makeFormData({ appointmentId: VALID_APPT_UUID });
+    const result = await revokeAppointmentAction(fd);
+    expect(result.success).toBe(true);
+    expect(mockAdminClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
+      p_final_status: "revoked",
+    }));
   });
 });
 

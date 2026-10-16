@@ -2,19 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createOfficialMatriculeAction } from "@/lib/matricule/matricule-actions";
-
-const ESCAE_FIELDS = [
-  "Génie Logiciel & Systèmes d'Information (GL-SI)",
-  "Réseaux, Sécurité & Télécommunications (RST)",
-  "Intelligence Artificielle & Science des Données",
-  "Comptabilité, Audit & Contrôle de Gestion",
-  "Banque, Finance & Assurance",
-  "Marketing, Communication & Commerce International",
-  "Gestion des Ressources Humaines (GRH)",
-  "Transport, Logistique & Supply Chain",
-  "Droit des Affaires & Carrières Juridiques",
-  "Autre filière",
-];
+import { AcademicProgramFields } from "@/components/matricule/AcademicProgramFields";
 
 const ACADEMIC_LEVELS = [
   "Licence 1 (L1)",
@@ -56,12 +44,12 @@ export function AddMatriculeModal({
   }
 
   const inputClass =
-    "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-sky-500/50";
+    "w-full min-w-0 max-w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/30 outline-none transition focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/15";
   const labelClass = "mb-1 block text-xs font-semibold text-white/60";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121212] p-6 shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-br from-[#171a17] to-[#101110] p-5 shadow-2xl shadow-black/50 ring-1 ring-white/[0.03] sm:p-6">
         <div className="flex items-center justify-between pb-4 border-b border-white/10">
           <div>
             <h3 className="text-base font-bold text-white">Ajouter un matricule officiel</h3>
@@ -82,7 +70,7 @@ export function AddMatriculeModal({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="modal-firstName" className={labelClass}>Prénom</label>
               <input id="modal-firstName" name="firstName" type="text" required placeholder="Prénom" className={inputClass} />
@@ -103,16 +91,12 @@ export function AddMatriculeModal({
             <input id="modal-email" name="email" type="email" required placeholder="etudiant@escae.bj" className={inputClass} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="modal-field" className={labelClass}>Filière</label>
-              <select id="modal-field" name="fieldOfStudy" className={`${inputClass} bg-[#181818]`} defaultValue="">
-                <option value="" disabled>Sélectionner</option>
-                {ESCAE_FIELDS.map((f) => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
-            </div>
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+            <AcademicProgramFields
+              idPrefix="modal-program"
+              inputClassName={`${inputClass} bg-[#181818]`}
+              labelClassName={labelClass}
+            />
             <div>
               <label htmlFor="modal-level" className={labelClass}>Niveau</label>
               <select id="modal-level" name="academicLevel" className={`${inputClass} bg-[#181818]`} defaultValue="">

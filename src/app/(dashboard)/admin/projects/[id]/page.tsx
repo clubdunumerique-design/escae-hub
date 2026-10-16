@@ -390,7 +390,7 @@ export default async function AdminProjectDetailPage({
                   <span className="text-white/70">{owner?.student_id ?? "Non renseigné"}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-white/40">Compte vérifié</span>
+                  <span className="text-white/40">Matricule rapproché</span>
                   <span>
                     {owner?.is_verified ? (
                       <span className="font-medium text-[#05F228]">✓ Oui</span>

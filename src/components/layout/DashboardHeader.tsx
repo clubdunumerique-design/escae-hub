@@ -19,7 +19,6 @@ interface MobileNavProps {
   userName: string;
   userRole: string;
   roleLabel: string;
-  isAdmin: boolean;
   navItems: NavItem[];
   adminNavItems: NavItem[];
   notifications: any[];
@@ -30,7 +29,6 @@ export function DashboardHeader({
   userName,
   userRole: _userRole,
   roleLabel,
-  isAdmin,
   navItems,
   adminNavItems,
   notifications,
@@ -145,33 +143,38 @@ export function DashboardHeader({
 
             {/* Navigation principale mobile */}
             <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-              <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-wider text-white/30">
-                Espace Étudiant
-              </div>
-              {navItems.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    prefetch={true}
-                    onClick={closeMenu}
-                    className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
-                      isActive
-                        ? "bg-[#03A61C]/20 text-[#05F228] font-semibold"
-                        : "text-white/70 hover:bg-white/5 hover:text-white"
-                    }`}
-                  >
-                    <span className={isActive ? "text-[#05F228]" : "text-[#03A61C]"}>{item.icon}</span>
-                    {item.label}
-                  </Link>
-                );
-              })}
-
-              {/* Section Admin si autorise */}
-              {isAdmin && (
+              {/* Section étudiant uniquement si applicable */}
+              {navItems.length > 0 && (
                 <>
-                  <div className="mb-2 mt-6 px-3 text-[10px] font-bold uppercase tracking-wider text-white/30">
+                  <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-wider text-white/30">
+                    Espace Étudiant
+                  </div>
+                  {navItems.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        prefetch={true}
+                        onClick={closeMenu}
+                        className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
+                          isActive
+                            ? "bg-[#03A61C]/20 text-[#05F228] font-semibold"
+                            : "text-white/70 hover:bg-white/5 hover:text-white"
+                        }`}
+                      >
+                        <span className={isActive ? "text-[#05F228]" : "text-[#03A61C]"}>{item.icon}</span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* Section Admin si autorisé */}
+              {adminNavItems.length > 0 && (
+                <>
+                  <div className={`mb-2 px-3 text-[10px] font-bold uppercase tracking-wider text-white/30 ${navItems.length > 0 ? "mt-6" : ""}`}>
                     Administration
                   </div>
                   {adminNavItems.map((item) => {

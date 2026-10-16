@@ -37,7 +37,7 @@ export interface UserProfile {
   email: string;
   full_name: string;
   role: UserRole;
-  is_verified: boolean;       // Vérification manuelle par l'administration
+  is_verified: boolean;       // Correspondance automatique avec une fiche collectée + email confirmé
   student_id: string | null;  // Numéro étudiant (null pour les non-étudiants)
   department: string | null;
   created_at: string;

@@ -91,24 +91,22 @@ export async function updateProjectStatusAction(
     return { success: false, error: "Projet introuvable." };
   }
 
-  // Mise à jour du statut
-  const { error: updateError } = await supabase
-    .from("projects")
-    .update({ status: newStatus })
-    .eq("id", projectId);
-
-  if (updateError) {
-    return { success: false, error: "Erreur lors de la mise à jour du statut." };
+  const { data: transitioned, error: transitionError } = await supabase.rpc(
+    "transition_project_status",
+    {
+      p_project_id: projectId,
+      p_expected_status: project.status,
+      p_new_status: newStatus,
+      p_comment: comment?.trim() || null,
+    },
+  );
+  if (transitionError) {
+    console.error("updateProjectStatusAction transition error:", transitionError);
+    return { success: false, error: "Le changement de statut et son historique n'ont pas pu être enregistrés." };
   }
-
-  // Enregistrement dans l'historique
-  await supabase.from("status_history").insert({
-    project_id: projectId,
-    from_status: project.status,
-    to_status: newStatus,
-    changed_by: user.id,
-    comment: comment?.trim() || null,
-  });
+  if (transitioned !== true) {
+    return { success: false, error: "Le statut du projet a changé ou cette transition n'est pas autorisée. Actualisez la page." };
+  }
 
   // Invalider les caches concernés
   revalidatePath(`/admin/projects/${projectId}`);

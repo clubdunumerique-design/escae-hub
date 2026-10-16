@@ -14,7 +14,6 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     // Lire le thème sauvegardé dans localStorage
@@ -22,7 +21,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const initialTheme: Theme = saved === "light" ? "light" : "dark";
     setThemeState(initialTheme);
     document.documentElement.setAttribute("data-theme", initialTheme);
-    setMounted(true);
   }, []);
 
   const setTheme = (newTheme: Theme) => {

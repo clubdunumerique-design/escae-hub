@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export async function sendNotification({
   userId,
@@ -13,13 +13,15 @@ export async function sendNotification({
   message: string;
   linkUrl?: string;
 }) {
-  const supabase = await createSupabaseServerClient();
-  
-  await supabase.from("notifications").insert({
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("notifications").insert({
     user_id: userId,
     type,
     title,
     message,
     link_url: linkUrl || null,
   });
+  if (error) {
+    console.error("sendNotification error:", error);
+  }
 }

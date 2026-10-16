@@ -94,15 +94,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ]);
 
   const profile = profileRes.data;
+  if (!profile?.role) redirect("/auth/login?error=profile_unavailable");
   const notifications = notifsRes.data;
 
   const isAdmin = profile?.role === "admin" || profile?.role === "director";
+  const isStudent = profile.role === "student";
   const roleLabels: Record<string, string> = {
     student: "Étudiant",
     admin: "Administrateur",
     director: "Directeur",
   };
-  const currentRoleLabel = roleLabels[profile?.role ?? "student"] ?? profile?.role ?? "Étudiant";
+  const currentRoleLabel = roleLabels[profile.role] ?? profile.role;
+
+  // Les admin/director ne voient pas la navigation étudiant (création de projets)
+  const studentNavItems = isStudent ? NAV_ITEMS : [];
+  const adminNavItems = isAdmin ? ADMIN_NAV_ITEMS.filter(
+    (item) => !("directorOnly" in item && item.directorOnly) || profile.role === "director"
+  ) : [];
 
   return (
     <div className="flex min-h-screen bg-[#0D0D0D] text-white">
@@ -141,30 +149,33 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
         {/* Navigation étudiant */}
         <nav className="flex-1 px-3 py-4" aria-label="Navigation principale">
-          <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-            Espace Étudiant
-          </div>
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={true}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/60 transition-all hover:bg-white/5 hover:text-white"
-            >
-              <span className="text-[#03A61C]">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
+          {/* Section étudiant uniquement si applicable */}
+          {studentNavItems.length > 0 && (
+            <>
+              <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                Espace Étudiant
+              </div>
+              {studentNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={true}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/60 transition-all hover:bg-white/5 hover:text-white"
+                >
+                  <span className="text-[#03A61C]">{item.icon}</span>
+                  {item.label}
+                </Link>
+              ))}
+            </>
+          )}
 
           {/* Section admin si applicable */}
-          {isAdmin && (
+          {adminNavItems.length > 0 && (
             <>
               <div className="mb-2 mt-6 px-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
                 Administration
               </div>
-              {ADMIN_NAV_ITEMS.filter(
-                (item) => !("directorOnly" in item && item.directorOnly) || profile?.role === "director"
-              ).map((item) => (
+              {adminNavItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -201,11 +212,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <DashboardHeader
           userEmail={user.email || ""}
           userName={profile?.full_name || ""}
-          userRole={profile?.role || "student"}
+          userRole={profile.role}
           roleLabel={currentRoleLabel}
-          isAdmin={isAdmin}
-          navItems={NAV_ITEMS}
-          adminNavItems={ADMIN_NAV_ITEMS}
+          navItems={studentNavItems}
+          adminNavItems={adminNavItems}
           notifications={notifications || []}
         />
 

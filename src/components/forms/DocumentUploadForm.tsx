@@ -20,8 +20,12 @@ export function DocumentUploadForm({ projectId, isDraft }: DocumentUploadFormPro
     if (!file) return;
 
     // Validation (max 10MB)
-    if (file.size > STORAGE_CONFIG.maxFileSizeBytes) {
-      setError("Le fichier ne doit pas dépasser 10 Mo.");
+    if (file.size <= 0 || file.size > STORAGE_CONFIG.maxFileSizeBytes) {
+      setError("Le fichier doit faire entre 1 octet et 10 Mo.");
+      return;
+    }
+    if (!STORAGE_CONFIG.acceptedMimeTypes.includes(file.type as (typeof STORAGE_CONFIG.acceptedMimeTypes)[number])) {
+      setError("Format non accepté. Choisissez un fichier PDF, DOC, DOCX, JPG ou PNG.");
       return;
     }
 
@@ -30,8 +34,8 @@ export function DocumentUploadForm({ projectId, isDraft }: DocumentUploadFormPro
 
     try {
       // 1. Upload vers Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+      const fileExt = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "bin";
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const storagePath = `${projectId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -92,6 +96,7 @@ export function DocumentUploadForm({ projectId, isDraft }: DocumentUploadFormPro
         <input
           id="file-upload"
           type="file"
+          accept={STORAGE_CONFIG.acceptedMimeTypes.join(",")}
           className="hidden"
           onChange={handleFileChange}
           disabled={isUploading}

@@ -4,19 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { submitStudentMatriculeAction } from "@/lib/matricule/matricule-actions";
 import type { MatriculeVerificationStatus } from "@/types";
-
-const ESCAE_FIELDS = [
-  "Génie Logiciel & Systèmes d'Information (GL-SI)",
-  "Réseaux, Sécurité & Télécommunications (RST)",
-  "Intelligence Artificielle & Science des Données",
-  "Comptabilité, Audit & Contrôle de Gestion",
-  "Banque, Finance & Assurance",
-  "Marketing, Communication & Commerce International",
-  "Gestion des Ressources Humaines (GRH)",
-  "Transport, Logistique & Supply Chain",
-  "Droit des Affaires & Carrières Juridiques",
-  "Autre filière",
-];
+import { AcademicProgramFields } from "@/components/matricule/AcademicProgramFields";
 
 const ACADEMIC_LEVELS = [
   "Licence 1 (L1)",
@@ -55,14 +43,15 @@ export function PublicMatriculeForm() {
   }
 
   const inputClass =
-    "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/20 backdrop-blur-sm transition-all focus:border-[#05F228] focus:bg-white/8 focus:outline-none focus:ring-1 focus:ring-[#05F228]/40 disabled:opacity-50";
+    "w-full min-w-0 max-w-full rounded-xl border border-white/20 bg-[#1b211c] px-4 py-3 text-sm text-white placeholder-white/55 transition-all hover:border-white/30 focus:border-[#05F228] focus:bg-[#202820] focus:outline-none focus:ring-2 focus:ring-[#05F228]/30 disabled:opacity-60";
   const labelClass =
-    "mb-2 block text-xs font-semibold uppercase tracking-wider text-white/60";
+    "mb-2 block text-xs font-semibold uppercase tracking-wider text-white/85";
 
   // Écran de confirmation de soumission
   if (submissionResult?.success && submissionResult.data) {
     const { matricule, fullName, status, isExistingUser } = submissionResult.data;
-    const isVerified = status === "verified";
+    const isMatched = isExistingUser;
+    const isOfficiallyVerified = status === "verified";
 
     return (
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-8 backdrop-blur-xl shadow-2xl">
@@ -75,17 +64,25 @@ export function PublicMatriculeForm() {
           </div>
 
           <span className="inline-block rounded-full bg-[#05F228]/10 px-3 py-1 text-xs font-semibold text-[#05F228]">
-            {isVerified ? "Matricule Officiellement Certifié" : "Demande Enregistrée avec Succès"}
+            {isMatched
+              ? "Correspondance confirmée"
+              : isOfficiallyVerified
+                ? "Fiche officiellement certifiée"
+                : "Fiche enregistrée"}
           </span>
 
           <h2 className="mt-3 text-2xl font-extrabold text-white">
-            {isVerified ? "Vous êtes vérifié !" : "Fiche transmise à la scolarité"}
+            {isMatched
+              ? "Votre compte correspond à cette fiche"
+              : "Votre fiche a été ajoutée au registre"}
           </h2>
 
           <p className="mt-2 text-sm text-white/60 max-w-md mx-auto">
-            {isVerified
-              ? "Votre matricule officiel a été reconnu et certifié dans les registres de l'établissement."
-              : "Vos informations ont bien été transmises au registre pour validation par les services administratifs d'ESCAE-BÉNIN."}
+            {isMatched
+              ? "Votre email confirmé, votre nom et votre matricule correspondent aux données collectées. Cette correspondance ne constitue pas une certification officielle de scolarité."
+              : isOfficiallyVerified
+                ? "Cette fiche a été marquée comme certifiée par le personnel autorisé."
+                : "Les informations sont collectées. Créez votre compte avec les mêmes nom et Gmail, puis confirmez l'adresse pour tenter le rapprochement automatique."}
           </p>
         </div>
 
@@ -101,8 +98,8 @@ export function PublicMatriculeForm() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-white/40">Statut actuel</span>
-            <span className={`font-semibold ${isVerified ? "text-emerald-400" : "text-amber-400"}`}>
-              {isVerified ? "Certifié" : "En cours d'examen"}
+            <span className={`font-semibold ${isMatched || isOfficiallyVerified ? "text-emerald-400" : "text-amber-400"}`}>
+              {isMatched ? "Correspondance confirmée" : isOfficiallyVerified ? "Certifié" : "Collecté"}
             </span>
           </div>
         </div>
@@ -110,13 +107,13 @@ export function PublicMatriculeForm() {
         {/* Prochaines étapes */}
         <div className="mt-6 rounded-xl border border-[#03A61C]/20 bg-[#03A61C]/5 p-4 text-xs text-white/70 space-y-1.5">
           <p className="font-bold text-[#79F281]">💡 Prochaine étape :</p>
-          {isExistingUser ? (
+          {isMatched ? (
             <p>
-              Votre compte Innovation Hub est déjà relié à ce matricule. Connectez-vous dès maintenant pour accéder à vos projets.
+              Votre compte Innovation Hub est relié à cette fiche. Les étudiants peuvent créer et soumettre des projets même si leur compte n&apos;est pas rapproché.
             </p>
           ) : (
             <p>
-              Créez votre compte étudiant sur <strong>ESCAE Innovation Hub</strong> avec cette même adresse email. Votre statut vérifié y sera automatiquement rattaché !
+              Créez votre compte étudiant sur <strong>ESCAE Innovation Hub</strong> avec cette même adresse Gmail et confirmez-la. Le rapprochement sera tenté automatiquement.
             </p>
           )}
         </div>
@@ -124,10 +121,10 @@ export function PublicMatriculeForm() {
         {/* Actions */}
         <div className="mt-6 flex flex-col sm:flex-row gap-3">
           <Link
-            href="/auth/register"
+            href={isMatched ? "/dashboard" : "/auth/register"}
             className="flex-1 text-center rounded-xl bg-[#03A61C] py-3.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_30px_rgba(5,242,40,0.6)]"
           >
-            Créer mon compte sur Innovation Hub &rarr;
+            {isMatched ? "Accéder à mon compte" : "Créer mon compte sur Innovation Hub"} &rarr;
           </Link>
           <button
             type="button"
@@ -142,7 +139,7 @@ export function PublicMatriculeForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-5">
+    <form onSubmit={handleSubmit} className="min-w-0 space-y-5 rounded-3xl border border-[#03A61C]/40 bg-gradient-to-br from-[#171d18] to-[#101310] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.55)] ring-1 ring-[#05F228]/10 sm:p-8">
       {/* Message d'erreur */}
       {submissionResult && !submissionResult.success && (
         <div
@@ -158,7 +155,7 @@ export function PublicMatriculeForm() {
       )}
 
       {/* Ligne : Prénom et Nom */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="firstName" className={labelClass}>
             Prénom(s) <span className="text-red-400">*</span>
@@ -168,7 +165,7 @@ export function PublicMatriculeForm() {
             name="firstName"
             type="text"
             required
-            placeholder="Ex : Koffi"
+            placeholder="Ex : Repotinard"
             disabled={isPending}
             className={inputClass}
           />
@@ -183,7 +180,7 @@ export function PublicMatriculeForm() {
             name="lastName"
             type="text"
             required
-            placeholder="Ex : MENSAH"
+            placeholder="Ex : VIGNON"
             disabled={isPending}
             className={inputClass}
           />
@@ -196,18 +193,17 @@ export function PublicMatriculeForm() {
           <label htmlFor="matricule" className={labelClass.replace("mb-2 ", "")}>
             Matricule étudiant officiel <span className="text-red-400">*</span>
           </label>
-          <span className="text-[11px] text-[#79F281] font-mono">Format : XX-XXXX-XXXX</span>
         </div>
         <input
           id="matricule"
           name="matricule"
           type="text"
           required
-          placeholder="Ex : 24-INFO-0042 ou ESCAE-2024-XXXX"
+          placeholder="Ex : ETU-2026-XXXX"
           disabled={isPending}
           className={`${inputClass} font-mono tracking-wider uppercase`}
         />
-        <p className="mt-1.5 text-[11px] text-white/40">
+        <p className="mt-1.5 text-[11px] leading-relaxed text-white/65">
           Saisissez votre matricule tel qu&apos;il figure sur votre carte d&apos;étudiant ou votre attestation d&apos;inscription.
         </p>
       </div>
@@ -215,7 +211,7 @@ export function PublicMatriculeForm() {
       {/* Adresse email */}
       <div>
         <label htmlFor="email" className={labelClass}>
-          Adresse e-mail <span className="text-red-400">*</span>
+            Adresse Gmail <span className="text-red-400">*</span>
         </label>
         <input
           id="email"
@@ -223,38 +219,23 @@ export function PublicMatriculeForm() {
           type="email"
           required
           autoComplete="email"
-          placeholder="etudiant@escae.bj ou prenom.nom@gmail.com"
+            placeholder="prenom.nom@gmail.com"
           disabled={isPending}
           className={inputClass}
         />
-        <p className="mt-1.5 text-[11px] text-white/40">
+        <p className="mt-1.5 text-[11px] leading-relaxed text-white/65">
           Utilisez de préférence l&apos;adresse email avec laquelle vous vous inscrirez sur la plateforme.
         </p>
       </div>
 
       {/* Filière et Niveau */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="fieldOfStudy" className={labelClass}>
-            Filière / Programme
-          </label>
-          <select
-            id="fieldOfStudy"
-            name="fieldOfStudy"
-            disabled={isPending}
-            className={`${inputClass} bg-[#141414]`}
-            defaultValue=""
-          >
-            <option value="" disabled className="text-white/30">
-              Sélectionnez votre filière
-            </option>
-            {ESCAE_FIELDS.map((f) => (
-              <option key={f} value={f} className="bg-[#141414] text-white">
-                {f}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <AcademicProgramFields
+          idPrefix="student-program"
+          disabled={isPending}
+          inputClassName={`${inputClass} bg-[#141414]`}
+          labelClassName={labelClass}
+        />
 
         <div>
           <label htmlFor="academicLevel" className={labelClass}>
@@ -267,7 +248,7 @@ export function PublicMatriculeForm() {
             className={`${inputClass} bg-[#141414]`}
             defaultValue=""
           >
-            <option value="" disabled className="text-white/30">
+            <option value="" disabled className="text-white/65">
               Sélectionnez votre niveau
             </option>
             {ACADEMIC_LEVELS.map((lvl) => (
@@ -286,7 +267,7 @@ export function PublicMatriculeForm() {
       </div>
 
       {/* Note d'intégrité */}
-      <div className="rounded-xl border border-white/5 bg-white/2 p-3 text-[11px] text-white/40 leading-relaxed">
+      <div className="rounded-xl border border-[#03A61C]/25 bg-[#03A61C]/[0.07] p-3 text-[11px] leading-relaxed text-white/70">
         🔒 Vos données sont confidentielles et utilisées exclusivement pour la certification académique de votre profil au sein d&apos;ESCAE-BÉNIN.
       </div>
 
@@ -294,7 +275,7 @@ export function PublicMatriculeForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-[#03A61C] py-3.5 text-sm font-bold text-white shadow-[0_0_25px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_35px_rgba(5,242,40,0.6)] disabled:opacity-50 disabled:cursor-not-allowed"
+        className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-[#03A61C] py-3.5 text-sm font-bold text-white shadow-[0_0_25px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_35px_rgba(5,242,40,0.6)] disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isPending ? (
           <span className="flex items-center gap-2">
@@ -321,7 +302,7 @@ export function PublicMatriculeForm() {
 
       {/* Lien vers connexion / inscription */}
       <div className="text-center pt-2">
-        <p className="text-xs text-white/40">
+        <p className="text-xs text-white/65">
           Vous avez déjà un compte ?{" "}
           <Link href="/auth/login" className="font-semibold text-[#05F228] hover:underline">
             Se connecter

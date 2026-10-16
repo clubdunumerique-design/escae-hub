@@ -4,6 +4,21 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { projectSchema, teamMemberSchema } from "@/lib/validations/project";
 import type { ApiResponse } from "@/types";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+const projectDocumentMetadataSchema = z.object({
+  projectId: z.string().uuid(),
+  name: z.string().trim().min(1).max(255),
+  storagePath: z.string().min(1).max(500),
+  mimeType: z.enum([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/png",
+  ]),
+  sizeBytes: z.number().int().min(1).max(10 * 1024 * 1024),
+});
 
 /**
  * Crée un nouveau brouillon de projet.
@@ -18,20 +33,18 @@ export async function createProjectAction(
     return { success: false, error: "Non autorisé", code: "UNAUTHORIZED" };
   }
 
-  // Vérifier que l'étudiant est vérifié par l'administration
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_verified, role")
+    .select("role")
     .eq("id", user.id)
     .single();
 
-  // Seuls les étudiants non vérifiés sont bloqués
-  // Le personnel (admin, jury, etc.) n'est pas soumis à cette contrainte
-  if (profile?.role === "student" && !profile?.is_verified) {
+  // Échouer par défaut si le profil manque ou si le rôle n'est pas étudiant.
+  if (profile?.role !== "student") {
     return {
       success: false,
-      error: "Votre compte n'est pas encore vérifié par l'administration. Vous ne pouvez pas créer de projet pour le moment.",
-      code: "NOT_VERIFIED",
+      error: "La création de projets est réservée aux étudiants.",
+      code: "FORBIDDEN",
     };
   }
 
@@ -70,7 +83,7 @@ export async function createProjectAction(
 
   if (error || !data) {
     console.error("createProjectAction error:", error);
-    return { success: false, error: error?.message || "Erreur lors de la création du projet." };
+    return { success: false, error: "Le brouillon n'a pas pu être enregistré. Vérifiez les informations et réessayez." };
   }
 
   revalidatePath("/dashboard");
@@ -87,62 +100,40 @@ export async function submitProjectAction(
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return { success: false, error: "Non autorisé" };
+    return { success: false, error: "Connectez-vous pour soumettre ce projet.", code: "UNAUTHORIZED" };
   }
 
-  // Vérifier que l'étudiant est vérifié avant de permettre la soumission
   const { data: callerProfile } = await supabase
     .from("profiles")
-    .select("is_verified, role")
+    .select("role")
     .eq("id", user.id)
     .single();
 
-  if (callerProfile?.role === "student" && !callerProfile?.is_verified) {
+  // Échouer par défaut si le profil manque ou si le rôle n'est pas étudiant.
+  if (callerProfile?.role !== "student") {
     return {
       success: false,
-      error: "Votre compte n'est pas encore vérifié par l'administration.",
-      code: "NOT_VERIFIED",
+      error: "La soumission de projets est réservée aux étudiants.",
+      code: "FORBIDDEN",
     };
   }
 
-  // 1. Vérifier si le projet appartient bien à l'utilisateur et est en brouillon
-  const { data: project, error: fetchError } = await supabase
-    .from("projects")
-    .select("status, owner_id")
-    .eq("id", projectId)
-    .single();
-
-  if (fetchError || !project) {
-    return { success: false, error: "Projet introuvable." };
+  const { data: transitioned, error: transitionError } = await supabase.rpc(
+    "transition_project_status",
+    {
+      p_project_id: projectId,
+      p_expected_status: "draft",
+      p_new_status: "submitted",
+      p_comment: "Soumission initiale par l'étudiant.",
+    },
+  );
+  if (transitionError) {
+    console.error("submitProjectAction transition error:", transitionError);
+    return { success: false, error: "La soumission n'a pas pu être enregistrée. Veuillez réessayer." };
   }
-
-  if (project.owner_id !== user.id) {
-    return { success: false, error: "Vous n'êtes pas propriétaire de ce projet." };
+  if (transitioned !== true) {
+    return { success: false, error: "Ce brouillon est introuvable, inaccessible ou déjà soumis." };
   }
-
-  if (project.status !== "draft") {
-    return { success: false, error: "Seul un brouillon peut être soumis." };
-  }
-
-  // 2. Mettre à jour le statut
-  const { error: updateError } = await supabase
-    .from("projects")
-    .update({ status: "submitted" })
-    .eq("id", projectId);
-
-  if (updateError) {
-    return { success: false, error: "Erreur lors de la soumission." };
-  }
-
-  // 3. Historiser la transition (Service Role ou RLS)
-  // RLS autorise l'insertion si owner_id == user.id (via RLS sur projects)
-  await supabase.from("status_history").insert({
-    project_id: projectId,
-    from_status: "draft",
-    to_status: "submitted",
-    changed_by: user.id,
-    comment: "Soumission initiale par l'étudiant.",
-  });
 
   revalidatePath("/dashboard");
   revalidatePath(`/projects/${projectId}`);
@@ -159,6 +150,15 @@ export async function addTeamMemberAction(formData: FormData): Promise<ApiRespon
 
   if (!user) {
     return { success: false, error: "Non autorisé" };
+  }
+
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (callerProfile?.role !== "student") {
+    return { success: false, error: "Cette action est réservée aux étudiants.", code: "FORBIDDEN" };
   }
 
   const rawData = {
@@ -223,6 +223,15 @@ export async function removeTeamMemberAction(memberId: string, projectId: string
     return { success: false, error: "Non autorisé" };
   }
 
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (callerProfile?.role !== "student") {
+    return { success: false, error: "Cette action est réservée aux étudiants.", code: "FORBIDDEN" };
+  }
+
   // Vérifier si le projet appartient bien à l'utilisateur et est en brouillon
   const { data: project, error: fetchError } = await supabase
     .from("projects")
@@ -272,30 +281,54 @@ export async function saveDocumentMetadataAction(data: {
 
   if (!user) return { success: false, error: "Non autorisé" };
 
+  const parsed = projectDocumentMetadataSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: "Le fichier ou ses informations sont invalides (PDF, DOC, DOCX, JPG ou PNG, 10 Mo maximum).", code: "VALIDATION_ERROR" };
+  }
+  const metadata = parsed.data;
+
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (callerProfile?.role !== "student") {
+    return { success: false, error: "Cette action est réservée aux étudiants.", code: "FORBIDDEN" };
+  }
+
   // Vérifier si le projet appartient bien à l'utilisateur et est en brouillon
   const { data: project, error: fetchError } = await supabase
     .from("projects")
     .select("status, owner_id")
-    .eq("id", data.projectId)
+    .eq("id", metadata.projectId)
     .single();
 
   if (fetchError || !project) return { success: false, error: "Projet introuvable." };
   if (project.owner_id !== user.id) return { success: false, error: "Non propriétaire." };
   if (project.status !== "draft") return { success: false, error: "Projet non brouillon." };
 
+  const expectedPrefix = `${metadata.projectId}/`;
+  if (!metadata.storagePath.startsWith(expectedPrefix) || metadata.storagePath.includes("..")) {
+    return { success: false, error: "Le fichier ou ses informations sont invalides (formats autorisés : PDF, DOC, DOCX, JPG, PNG ; 10 Mo maximum).", code: "VALIDATION_ERROR" };
+  }
+
   const { error: insertError } = await supabase
     .from("project_documents")
     .insert({
-      project_id: data.projectId,
-      name: data.name,
-      storage_path: data.storagePath,
-      mime_type: data.mimeType,
-      size_bytes: data.sizeBytes,
+      project_id: metadata.projectId,
+      name: metadata.name,
+      storage_path: metadata.storagePath,
+      mime_type: metadata.mimeType,
+      size_bytes: metadata.sizeBytes,
+      uploaded_by: user.id,
     });
 
-  if (insertError) return { success: false, error: "Erreur BDD." };
+  if (insertError) {
+    console.error("saveDocumentMetadataAction error:", insertError);
+    return { success: false, error: "Le fichier a été envoyé, mais son enregistrement a échoué. Réessayez ou rechargez la page." };
+  }
 
-  revalidatePath(`/projects/${data.projectId}`);
+  revalidatePath(`/projects/${metadata.projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -307,6 +340,15 @@ export async function deleteDocumentAction(documentId: string, projectId: string
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) return { success: false, error: "Non autorisé" };
+
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (callerProfile?.role !== "student") {
+    return { success: false, error: "Cette action est réservée aux étudiants.", code: "FORBIDDEN" };
+  }
 
   const { data: project } = await supabase
     .from("projects")
@@ -323,15 +365,21 @@ export async function deleteDocumentAction(documentId: string, projectId: string
     .from("project_documents")
     .select("storage_path")
     .eq("id", documentId)
+    .eq("project_id", projectId)
     .single();
 
   if (!doc) return { success: false, error: "Document introuvable." };
 
   // 2. Supprimer de Storage (Admin client ou user client si RLS le permet)
   // Comme RLS le permet pour le owner, on peut utiliser le client courant
-  const { error: _storageError } = await supabase.storage
+  const { error: storageError } = await supabase.storage
     .from("project_documents")
     .remove([doc.storage_path]);
+
+  if (storageError) {
+    console.error("deleteDocumentAction storage error:", storageError);
+    return { success: false, error: "Le fichier n'a pas pu être supprimé du stockage. Les informations du projet ont été conservées." };
+  }
 
   // Même s'il y a une erreur storage (ex: fichier déjà supprimé), on supprime la ligne BDD
   // 3. Supprimer de la BDD
@@ -340,7 +388,10 @@ export async function deleteDocumentAction(documentId: string, projectId: string
     .delete()
     .eq("id", documentId);
 
-  if (dbError) return { success: false, error: "Erreur lors de la suppression BDD." };
+  if (dbError) {
+    console.error("deleteDocumentAction database error:", dbError);
+    return { success: false, error: "Le fichier a été supprimé du stockage, mais son enregistrement n'a pas pu être supprimé. Rechargez la page ou contactez le support." };
+  }
 
   revalidatePath(`/projects/${projectId}`);
   return { success: true, data: undefined };

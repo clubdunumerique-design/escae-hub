@@ -42,10 +42,33 @@ export async function verifyStudentAction(
 
   // 3. Utiliser le client admin (contourne RLS) pour mettre a jour is_verified
   const adminClient = createSupabaseAdminClient();
+  if (verified) {
+    const { data: targetProfile } = await adminClient
+      .from("profiles")
+      .select("student_id, role")
+      .eq("id", studentId)
+      .single();
+
+    if (!targetProfile || targetProfile.role !== "student" || !targetProfile.student_id) {
+      return { success: false, error: "Aucun matricule candidat à rapprocher.", code: "NOT_MATCHED" };
+    }
+
+    const { data: matched, error: matchError } = await adminClient.rpc("claim_student_matricule", {
+      p_user_id: studentId,
+      p_matricule: targetProfile.student_id,
+    });
+    if (matchError || matched !== true) {
+      return { success: false, error: "Le compte ne correspond pas à une fiche collectée avec email confirmé.", code: "NOT_MATCHED" };
+    }
+    revalidatePath("/admin/users");
+    revalidatePath("/admin");
+    return { success: true, data: undefined };
+  }
+
   const { error } = await adminClient
     .from("profiles")
     .update({
-      is_verified: verified,
+      is_verified: false,
       updated_at: new Date().toISOString(),
     })
     .eq("id", studentId);

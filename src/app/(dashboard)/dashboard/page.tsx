@@ -50,6 +50,11 @@ export default async function DashboardPage() {
   const profile = profileRes.data;
   const projects = projectsRes.data;
 
+  // Rediriger les admin/director vers leur espace dédié
+  if (profile?.role === "admin" || profile?.role === "director") {
+    redirect("/admin");
+  }
+
   const stats = {
     total: projects?.length ?? 0,
     drafts: projects?.filter((p) => p.status === "draft").length ?? 0,
@@ -64,7 +69,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      {/* Bannière de vérification en attente */}
+      {/* Le rapprochement du matricule informe le profil, sans bloquer les projets. */}
       {profile && profile.role === "student" && !profile.is_verified && (
         <div className="mb-6 flex items-start gap-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
           <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-500/20">
@@ -73,9 +78,9 @@ export default async function DashboardPage() {
             </svg>
           </div>
           <div>
-            <p className="font-semibold text-amber-300">Compte en attente de vérification</p>
+            <p className="font-semibold text-amber-300">Matricule non rapproché</p>
             <p className="mt-1 text-sm text-amber-200/70">
-              Votre inscription est en cours de vérification par l&apos;administration. Vous pourrez soumettre des projets dès que votre compte sera validé. Ce processus prend généralement quelques jours ouvrés.
+              Le rapprochement automatique n&apos;a pas encore trouvé de correspondance confirmée. Vous pouvez créer et soumettre des projets normalement.
             </p>
           </div>
         </div>
