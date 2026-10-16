@@ -2,65 +2,48 @@ export const ESCAE_PROGRAM_CATEGORIES = [
   {
     label: "Informatique et numérique",
     programs: [
-      "Système Informatique et Logiciel (SIL)",
-      "Sécurité Informatique (SI)",
-      "Web Design",
+      "Intelligence Artificielle (IA)",
+      "Sécurité des Réseaux et Systèmes (SRS)",
+      "Systèmes Informatiques et Logiciel (SIL)",
     ],
   },
   {
-    label: "Marketing, commerce et communication",
-    programs: [
-      "Marketing et Stratégie d’Entreprise",
-      "Marketing Communication Commerciale (MCC)",
-    ],
+    label: "Communication et médias",
+    programs: ["Communication d'Entreprise et Médias (CEM)"],
   },
   {
     label: "Finance, comptabilité et banque",
     programs: [
-      "Banque Finance et Assurance (BFA)",
-      "Comptabilité, Audit et Contrôle de Gestion",
-      "Finance Comptabilité et Audit (FCA)",
+      "Banque Finance Assurance (BFA)",
+      "Comptabilité Audit et Contrôle de Gestion (CACG)",
     ],
   },
   {
-    label: "Gestion et management",
+    label: "Gestion, management et marketing",
     programs: [
-      "Gestion des Projets et des Organisations (GPO)",
-      "Management des Organisations",
+      "Gestion de Projets et Organisations (GPO)",
       "Management des Ressources Humaines (MRH)",
+      "Marketing et Stratégie d'Entreprise (MSE)",
     ],
   },
   {
-    label: "Transport, logistique et tourisme",
+    label: "Tourisme, hôtellerie et transport",
     programs: [
-      "Transport et Logistique (TL)",
-      "Hôtellerie et Tourisme (HT)",
+      "Hôtellerie Restauration (HR)",
+      "Tourisme et Loisir (TOULO)",
+      "Transport et Logistique (TLOG)",
     ],
   },
   {
-    label: "Droit, relations internationales et sciences politiques",
-    programs: [
-      "Sciences Juridiques",
-      "Relations Internationales",
-      "Sciences Politiques",
-    ],
+    label: "Droit et développement local",
+    programs: ["Droit (DRT)", "Planification et Développement Local (PDL)"],
   },
   {
-    label: "Économie et développement",
+    label: "Santé, génie civil et qualité",
     programs: [
-      "Économie Sociale et Coopérative",
-      "Statistique et Économétrie",
-      "Développement Local et Décentralisation",
-      "Gestion des Collectivités Locales",
-      "Gestion des Finances Locales",
-      "Gestion des Services Techniques",
-    ],
-  },
-  {
-    label: "Génie civil et santé",
-    programs: [
-      "Génie-Civil, Bâtiment et Travaux Publics (GC-BTP)",
-      "Analyse Bio-Médicale",
+      "Analyses Biomédicales (ABM)",
+      "Génie Civil - Bâtiments et Travaux Publics (GC-BTP)",
+      "Qualité Hygiène et Sécurité (QHS)",
     ],
   },
 ] as const;

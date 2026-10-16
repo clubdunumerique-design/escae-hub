@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { completeAdminInvitationAction, completeStudentMatriculeClaimAction } from "@/app/(auth)/actions";
+import {
+  completeAdminInvitationAction,
+  completeStudentMatriculeClaimAction,
+} from "@/app/(auth)/actions";
 
 export default function ConfirmedPage() {
   const router = useRouter();
@@ -11,40 +14,61 @@ export default function ConfirmedPage() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isAdminInvitationFlow, setIsAdminInvitationFlow] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
     const supabase = createSupabaseBrowserClient();
+    const adminInvitationFlow =
+      new URLSearchParams(window.location.search).get("flow") === "admin-invitation";
+    setIsAdminInvitationFlow(adminInvitationFlow);
 
-    async function loadRole(userId: string) {
+    async function loadRole(userId: string): Promise<string | null> {
       try {
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", userId)
           .single();
+        if (error) return null;
         if (profile?.role && isMounted) {
           setUserRole(profile.role);
         }
+        return profile?.role ?? null;
       } catch {
-        // En cas d'échec, reste par défaut
+        return null;
       }
     }
 
     async function checkAuth() {
       try {
-        const finishAuthenticatedUser = async (user: { id: string; email?: string; email_confirmed_at?: string | null }) => {
+        const finishAuthenticatedUser = async (user: {
+          id: string;
+          email?: string;
+          email_confirmed_at?: string | null;
+        }) => {
           await completeStudentMatriculeClaimAction();
-          const inviteLink = typeof window !== "undefined" && window.location.hash.includes("type=invite");
-          const invitation = await completeAdminInvitationAction();
-          if (inviteLink && !invitation.accepted) {
-            setErrorMessage("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.");
+          // The server callback has already accepted this invitation atomically.
+          // Keep the old hash-link path working for invitations issued before it.
+          const legacyInviteLink =
+            !adminInvitationFlow && window.location.hash.includes("type=invite");
+          const invitation = legacyInviteLink ? await completeAdminInvitationAction() : null;
+          if (legacyInviteLink && !invitation?.accepted) {
+            setErrorMessage(
+              "Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.",
+            );
             setStatus("error");
             return;
           }
           setUserEmail(user.email ?? null);
-          if (invitation.accepted) setUserRole(invitation.role);
-          else loadRole(user.id);
+          const role = invitation?.accepted ? invitation.role : await loadRole(user.id);
+          if (adminInvitationFlow && role !== "admin") {
+            setErrorMessage(
+              "Votre adresse a été confirmée, mais votre accès administrateur n’a pas pu être activé. Contactez le directeur.",
+            );
+            setStatus("error");
+            return;
+          }
           setStatus("success");
         };
         // 1. Vérifier si un hash d'erreur est présent
@@ -61,7 +85,10 @@ export default function ConfirmedPage() {
         }
 
         // 2. Vérifier la session actuelle
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
         if (sessionError) {
           throw sessionError;
@@ -73,23 +100,27 @@ export default function ConfirmedPage() {
         }
 
         // 3. Écouter les changements d'état (si le client traite le hash)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, currentSession) => {
-            if (currentSession?.user) {
-              if (isMounted) await finishAuthenticatedUser(currentSession.user);
-            }
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+          if (currentSession?.user) {
+            if (isMounted) await finishAuthenticatedUser(currentSession.user);
           }
-        );
+        });
 
         // Laisser 2.5 secondes au client pour capturer un éventuel hash token
         setTimeout(async () => {
           if (!isMounted) return;
-          const { data: { user } } = await supabase.auth.getUser();
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
           if (user) {
             await finishAuthenticatedUser(user);
           } else {
             // Aucune session trouvée après délai : c'est une erreur réelle
-            setErrorMessage("Votre session n'a pas pu être créée. Le lien est peut-être expiré ou déjà utilisé.");
+            setErrorMessage(
+              "Votre session n'a pas pu être créée. Le lien est peut-être expiré ou déjà utilisé.",
+            );
             setStatus("error");
           }
         }, 2000);
@@ -129,15 +160,26 @@ export default function ConfirmedPage() {
             {/* Icône de succès avec halo vert */}
             <div className="relative mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#03A61C]/20 text-[#05F228] shadow-[0_0_25px_rgba(5,242,40,0.3)]">
               <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             </div>
             <span className="inline-block rounded-full bg-[#05F228]/10 px-3 py-1 text-xs font-semibold text-[#05F228]">
               Confirmation réussie
             </span>
-            <h1 className="mt-3 text-2xl font-extrabold text-white">Votre compte est confirmé !</h1>
+            <h1 className="mt-3 text-2xl font-extrabold text-white">
+              {isAdminInvitationFlow
+                ? "Votre nomination est confirmée !"
+                : "Votre compte est confirmé !"}
+            </h1>
             <p className="mt-2 text-sm text-white/60">
-              Votre adresse email a été validée avec succès. Votre compte est maintenant activé.
+              {isAdminInvitationFlow
+                ? "Votre adresse email est vérifiée et votre accès administrateur est activé. Vous pouvez accéder à votre espace."
+                : "Votre adresse email a été validée avec succès. Votre compte est maintenant activé."}
             </p>
           </div>
         )}
@@ -146,7 +188,12 @@ export default function ConfirmedPage() {
           <div className="mx-auto flex flex-col items-center justify-center">
             <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/20 text-red-400">
               <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </div>
             <h1 className="mt-3 text-2xl font-extrabold text-white">Échec de confirmation</h1>
@@ -177,7 +224,7 @@ export default function ConfirmedPage() {
             <button
               onClick={() => {
                 if (userRole === "admin") {
-                  router.push("/admin/profile/complete");
+                  router.push(isAdminInvitationFlow ? "/admin" : "/admin/profile/complete");
                 } else if (userRole === "director") {
                   router.push("/admin");
                 } else {
@@ -188,10 +235,10 @@ export default function ConfirmedPage() {
             >
               <span>
                 {userRole === "admin"
-                  ? "Accéder à mon espace Administrateur"
+                  ? "Accéder à mon espace"
                   : userRole === "director"
-                  ? "Accéder à l'espace Direction"
-                  : "Accéder à mon espace"}
+                    ? "Accéder à l'espace Direction"
+                    : "Accéder à mon espace"}
               </span>
               <svg
                 className="h-4 w-4 transition-transform group-hover:translate-x-1"
@@ -199,7 +246,12 @@ export default function ConfirmedPage() {
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M14 5l7 7m0 0l-7 7m7-7H3"
+                />
               </svg>
             </button>
           </div>

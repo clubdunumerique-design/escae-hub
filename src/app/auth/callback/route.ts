@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
+import { isAdminInvitationLink } from "@/lib/auth/admin-invitation-link";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -11,15 +12,18 @@ export async function GET(request: NextRequest) {
   const error_description = searchParams.get("error_description");
   const requestedNext = searchParams.get("next") ?? "/auth/confirmed";
   // N'accepter qu'un chemin local pour éviter les redirections externes après connexion.
-  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.includes("\\")
-    ? requestedNext
-    : "/auth/confirmed";
+  const next =
+    requestedNext.startsWith("/") &&
+    !requestedNext.startsWith("//") &&
+    !requestedNext.includes("\\")
+      ? requestedNext
+      : "/auth/confirmed";
 
   // Si Supabase renvoie une erreur directe
   if (error) {
     const errorMsg = error_description || error;
     return NextResponse.redirect(
-      new URL(`/auth/login?error=${encodeURIComponent(errorMsg)}`, origin)
+      new URL(`/auth/login?error=${encodeURIComponent(errorMsg)}`, origin),
     );
   }
 
@@ -31,22 +35,18 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      supabasePublicKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options);
-            });
-          },
+    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, supabasePublicKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
         },
-      }
-    );
+        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
 
     let exchangeSucceeded = false;
 
@@ -67,9 +67,11 @@ export async function GET(request: NextRequest) {
 
     if (exchangeSucceeded) {
       // L'échange du code seul ne suffit pas : valider la session côté serveur.
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
-        if (type === "invite" || type === "recovery") {
+        if (isAdminInvitationLink(type, next)) {
           const admin = (await import("@/lib/supabase/server")).createSupabaseAdminClient();
           const { data: invitationAccepted, error: invitationError } = await admin.rpc(
             "accept_admin_invitation",
@@ -77,10 +79,13 @@ export async function GET(request: NextRequest) {
           );
           if (invitationError || invitationAccepted !== true) {
             await supabase.auth.signOut();
-            response.headers.set("Location", new URL(
-              `/auth/login?error=${encodeURIComponent("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.")}`,
-              origin,
-            ).toString());
+            response.headers.set(
+              "Location",
+              new URL(
+                `/auth/login?error=${encodeURIComponent("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.")}`,
+                origin,
+              ).toString(),
+            );
             return response;
           }
         }
@@ -98,11 +103,14 @@ export async function GET(request: NextRequest) {
           .single();
 
         if (!profileError && profile?.role) {
-          const destination = profile.role === "admin"
-            ? "/admin/profile/complete"
-            : profile.role === "director"
-              ? "/admin"
-              : "/dashboard";
+          const destination =
+            profile.role === "admin" && isAdminInvitationLink(type, next)
+              ? "/auth/confirmed?flow=admin-invitation"
+              : profile.role === "admin"
+                ? "/admin/profile/complete"
+                : profile.role === "director"
+                  ? "/admin"
+                  : "/dashboard";
 
           // Conserver la même réponse qui a reçu les cookies Supabase, sans en perdre les options.
           response.headers.set("Location", new URL(destination, origin).toString());
@@ -112,11 +120,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Lien invalide ou expiré : message explicite
-    const errParam = type === "invite"
-      ? "Lien d'invitation expiré ou déjà utilisé. Contactez le directeur pour une nouvelle invitation."
+    const errParam = isAdminInvitationLink(type, next)
+      ? "Lien de nomination expiré ou déjà utilisé. Contactez le directeur pour un nouveau lien."
       : "Lien de confirmation invalide ou expiré. Veuillez réessayer depuis votre email.";
     return NextResponse.redirect(
-      new URL(`/auth/login?error=${encodeURIComponent(errParam)}`, origin)
+      new URL(`/auth/login?error=${encodeURIComponent(errParam)}`, origin),
     );
   }
 
@@ -148,6 +156,6 @@ export async function GET(request: NextRequest) {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
       },
-    }
+    },
   );
 }

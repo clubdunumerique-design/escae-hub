@@ -236,6 +236,25 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
+# Keep each Auth email flow visually and semantically distinct.
+[auth.email.template.confirmation]
+subject = "Votre code de confirmation — ESCAE-BÉNIN Innovation Hub"
+content_path = "./supabase/templates/signup-confirmation.html"
+
+[auth.email.template.invite]
+subject = "Invitation à rejoindre l’administration — ESCAE-BÉNIN"
+content_path = "./supabase/templates/admin-invite.html"
+
+# The application uses the Magic Link Auth template only for nominations of
+# users who already have an account. Signup OTP continues to use confirmation.
+[auth.email.template.magic_link]
+subject = "Votre nomination comme administrateur — ESCAE-BÉNIN"
+content_path = "./supabase/templates/admin-magic-link.html"
+
+[auth.email.template.recovery]
+subject = "Réinitialisation du mot de passe — ESCAE-BÉNIN"
+content_path = "./supabase/templates/password-recovery.html"
+
 # Use a production-ready SMTP server
 # [auth.email.smtp]
 # enabled = true

@@ -40,7 +40,10 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
       admin: {
         listUsers: vi.fn(),
         inviteUserByEmail: vi.fn(),
+        getUserById: vi.fn(),
       },
+      signInWithOtp: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
     },
     from: vi.fn(),
   };
@@ -63,6 +66,7 @@ vi.mock("@/lib/notifications/send", () => ({
 // ---------------------------------------------------------------------------
 import {
   nominateAdminAction,
+  resendAdminInvitationAction,
   closeAppointmentAction,
   revokeAppointmentAction,
   updateAdminProfileAction,
@@ -198,6 +202,122 @@ describe("nominateAdminAction", () => {
         data: expect.objectContaining({ role: "admin" }),
       })
     );
+    expect(mockAdminClient.auth.signInWithOtp).not.toHaveBeenCalled();
+  });
+
+  it("envoie un lien de nomination séparé pour un compte déjà existant", async () => {
+    setupDirectorSession("dir-001");
+    mockAdminClient.auth.admin.listUsers.mockResolvedValue({
+      data: { users: [{ id: "existing-002", email: "existing@example.com" }] },
+      error: null,
+    });
+    mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
+
+    let appointmentSelectCount = 0;
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "profiles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: "existing-002", role: "student", full_name: "Compte existant" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "audit_logs") {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      if (table === "admin_appointments") {
+        if (appointmentSelectCount++ < 2) {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+          };
+        }
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: "appt-existing-002" }, error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await nominateAdminAction(makeFormData({
+      fullName: "Compte existant",
+      email: "existing@example.com",
+    }));
+
+    expect(result.success).toBe(true);
+    expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
+      email: "existing@example.com",
+      options: {
+        emailRedirectTo: "http://localhost:3000/auth/callback?next=/admin/profile/complete",
+        shouldCreateUser: false,
+      },
+    });
+    expect(mockAdminClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("renvoie le lien de nomination avec le modèle de Magic Link pour un mandat en attente", async () => {
+    setupDirectorSession("dir-001");
+    mockAdminClient.auth.admin.getUserById.mockResolvedValue({
+      data: { user: { email: "existing@example.com" } },
+      error: null,
+    });
+    mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
+    mockAdminClient.from.mockImplementation((table: string) => {
+      if (table === "admin_appointments") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: "11111111-1111-4111-8111-111111111111",
+                  admin_id: "existing-002",
+                  status: "pending_acceptance",
+                  invitation_accepted_at: null,
+                },
+                error: null,
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === "audit_logs") {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const result = await resendAdminInvitationAction(makeFormData({
+      appointmentId: "11111111-1111-4111-8111-111111111111",
+    }));
+
+    expect(result.success).toBe(true);
+    expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
+      email: "existing@example.com",
+      options: {
+        emailRedirectTo: "http://localhost:3000/auth/callback?next=/admin/profile/complete",
+        shouldCreateUser: false,
+      },
+    });
   });
 
   // TC-02 : Un étudiant ne peut pas nommer un admin

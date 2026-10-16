@@ -106,7 +106,7 @@ async function writeAuditLog({
  * Flux :
  * 1. Vérifier que l'appelant est directeur
  * 2. Vérifier les doublons (compte existant / mandat actif)
- * 3. Créer ou inviter le compte Supabase Auth avec role=admin
+ * 3. Créer ou inviter le compte Supabase Auth sans accorder le rôle admin
  * 4. Créer l'enregistrement admin_appointments
  * 5. Journaliser l'action
  * 6. Notifier l'administrateur nommé (si compte existant)
@@ -183,7 +183,7 @@ export async function nominateAdminAction(
 
     // Existing accounts are promoted only after redeeming an email link.
   } else {
-    // Inviter un nouveau compte — utilise inviteUserByEmail pour envoyer le lien magique
+    // Nouveau compte : Supabase utilise le modèle « Invite user ».
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       email,
       {
@@ -283,10 +283,15 @@ export async function nominateAdminAction(
   }
 
   if (existingAuthUser) {
-    // Supabase sends its recovery email to the existing account. The callback
-    // accepts this link only if the pending appointment is still valid.
-    const { error: emailError } = await adminClient.auth.resetPasswordForEmail(email, {
-      redirectTo: `${appUrl}/auth/callback?next=/admin/profile/complete`,
+    // Compte existant : envoyer un lien de connexion à usage unique, jamais un
+    // message de réinitialisation. Le modèle Supabase « Magic Link » est réservé
+    // à cette nomination dans l'application et pointe vers l'acceptation du mandat.
+    const { error: emailError } = await adminClient.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${appUrl}/auth/callback?next=/admin/profile/complete`,
+        shouldCreateUser: false,
+      },
     });
     if (emailError) {
       await adminClient.from("admin_appointments").update({
@@ -329,6 +334,92 @@ export async function nominateAdminAction(
   revalidatePath("/admin/users");
 
   return { success: true, data: { appointmentId: appointment.id } };
+}
+
+// ---------------------------------------------------------------------------
+// Action 1b : Renvoyer le lien distinct d'une nomination en attente
+// ---------------------------------------------------------------------------
+
+export async function resendAdminInvitationAction(
+  formData: FormData
+): Promise<ApiResponse<void>> {
+  const { user, director } = await assertDirector();
+  if (!user || !director) {
+    return { success: false, error: "Seul le directeur peut renvoyer une invitation.", code: "FORBIDDEN" };
+  }
+
+  const parsed = z.object({ appointmentId: z.string().uuid() }).safeParse({
+    appointmentId: formData.get("appointmentId"),
+  });
+  if (!parsed.success) {
+    return { success: false, error: "Identifiant de mandat invalide.", code: "VALIDATION_ERROR" };
+  }
+
+  const appUrl = getPublicAppUrl();
+  if (!appUrl) {
+    return { success: false, error: "L'URL publique de la plateforme n'est pas configurée." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: appointment, error: appointmentError } = await adminClient
+    .from("admin_appointments")
+    .select("id, admin_id, status, invitation_accepted_at")
+    .eq("id", parsed.data.appointmentId)
+    .single();
+
+  if (appointmentError || !appointment) {
+    return { success: false, error: "Nomination introuvable." };
+  }
+  if (appointment.status !== "pending_acceptance" || appointment.invitation_accepted_at) {
+    return { success: false, error: "Cette nomination n'est plus en attente." };
+  }
+
+  const { data: authUser, error: authUserError } = await adminClient.auth.admin.getUserById(
+    appointment.admin_id,
+  );
+  const email = authUser?.user?.email;
+  if (authUserError || !email) {
+    return { success: false, error: "Adresse e-mail du compte introuvable." };
+  }
+
+  // Renouveler la fenêtre de validité avant l'envoi. Un échec d'envoi ne donne
+  // aucun rôle : l'acceptation reste atomiquement protégée par la base.
+  const sentAt = new Date().toISOString();
+  const { error: updateError } = await adminClient
+    .from("admin_appointments")
+    .update({ invitation_sent_at: sentAt, updated_at: sentAt })
+    .eq("id", appointment.id)
+    .eq("status", "pending_acceptance");
+  if (updateError) {
+    return { success: false, error: "Impossible de préparer le renvoi de l'invitation." };
+  }
+
+  const { error: emailError } = await adminClient.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${appUrl}/auth/callback?next=/admin/profile/complete`,
+      shouldCreateUser: false,
+    },
+  });
+  if (emailError) {
+    await writeAuditLog({
+      actorId: user.id,
+      action: "admin.invitation_resend_failed",
+      targetId: appointment.id,
+      targetType: "admin_appointment",
+      details: { error: emailError.message },
+    });
+    return { success: false, error: "Le lien de nomination n'a pas pu être envoyé. Vérifiez le SMTP et les journaux Auth." };
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: "admin.invitation_resent",
+    targetId: appointment.id,
+    targetType: "admin_appointment",
+  });
+  revalidatePath("/admin/appointments");
+  return { success: true, data: undefined };
 }
 
 // ---------------------------------------------------------------------------

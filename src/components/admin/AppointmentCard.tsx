@@ -7,7 +7,11 @@
 
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { closeAppointmentAction, revokeAppointmentAction } from "@/lib/admin/appointment-actions";
+import {
+  closeAppointmentAction,
+  resendAdminInvitationAction,
+  revokeAppointmentAction,
+} from "@/lib/admin/appointment-actions";
 import type { AdminAppointmentWithProfiles, AppointmentStatus } from "@/types";
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
@@ -35,6 +39,7 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const admin = Array.isArray(appointment.admin) ? appointment.admin[0] : appointment.admin;
   const director = Array.isArray(appointment.director)
@@ -63,6 +68,21 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
         setError(res.error);
       } else {
         setShowRevokeConfirm(false);
+      }
+    });
+  }
+
+  function handleResendInvitation() {
+    setError(null);
+    setNotice(null);
+    const formData = new FormData();
+    formData.set("appointmentId", appointment.id);
+    startTransition(async () => {
+      const res = await resendAdminInvitationAction(formData);
+      if (!res.success) {
+        setError(res.error);
+      } else {
+        setNotice("Nouveau lien de nomination envoyé. Il utilise le modèle d’invitation, pas celui de récupération du mot de passe.");
       }
     });
   }
@@ -120,6 +140,17 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
 
         {/* Actions directeur */}
         <div className="flex flex-wrap gap-2 sm:flex-col sm:items-end">
+          {canRevoke && appointment.status === "pending_acceptance" && !showCloseForm && !showRevokeConfirm && (
+            <button
+              id={`resend-appointment-invitation-${appointment.id}`}
+              type="button"
+              onClick={handleResendInvitation}
+              disabled={isPending}
+              className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/15 disabled:opacity-50"
+            >
+              {isPending ? "Envoi en cours…" : "Renvoyer l’invitation"}
+            </button>
+          )}
           {canClose && !showCloseForm && !showRevokeConfirm && (
             <button
               id={`close-appointment-${appointment.id}`}
@@ -147,6 +178,11 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
       {error && (
         <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-xs text-red-300">
           ❌ {error}
+        </div>
+      )}
+      {notice && (
+        <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-300" role="status">
+          ✅ {notice}
         </div>
       )}
 

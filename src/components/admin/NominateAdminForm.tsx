@@ -19,7 +19,7 @@ export function NominateAdminForm() {
       if (res.success) {
         setResult({
           success: true,
-          message: "Invitation envoyée avec succès ! L'administrateur recevra un email pour accéder à son compte.",
+          message: "Demande d'invitation envoyée. Vérifiez que le courriel arrive dans la boîte de réception ou les indésirables.",
         });
         // Réinitialiser le formulaire
         const form = document.getElementById("nominate-admin-form") as HTMLFormElement;
