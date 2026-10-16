@@ -10,10 +10,26 @@ export default function ConfirmedPage() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
     const supabase = createSupabaseBrowserClient();
+
+    async function loadRole(userId: string) {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userId)
+          .single();
+        if (profile?.role && isMounted) {
+          setUserRole(profile.role);
+        }
+      } catch {
+        // En cas d'échec, reste par défaut
+      }
+    }
 
     async function checkAuth() {
       try {
@@ -41,6 +57,7 @@ export default function ConfirmedPage() {
           if (isMounted) {
             setUserEmail(session.user.email ?? null);
             setStatus("success");
+            loadRole(session.user.id);
           }
           return;
         }
@@ -151,10 +168,24 @@ export default function ConfirmedPage() {
             )}
 
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => {
+                if (userRole === "admin") {
+                  router.push("/admin/profile/complete");
+                } else if (userRole === "director") {
+                  router.push("/admin");
+                } else {
+                  router.push("/dashboard");
+                }
+              }}
               className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-[#03A61C] py-3.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_30px_rgba(5,242,40,0.6)]"
             >
-              <span>Accéder à mon espace</span>
+              <span>
+                {userRole === "admin"
+                  ? "Accéder à mon espace Administrateur"
+                  : userRole === "director"
+                  ? "Accéder à l'espace Direction"
+                  : "Accéder à mon espace"}
+              </span>
               <svg
                 className="h-4 w-4 transition-transform group-hover:translate-x-1"
                 fill="none"

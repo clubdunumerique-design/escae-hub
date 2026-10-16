@@ -843,3 +843,142 @@ export async function getAuditLogsAction(limit = 50): Promise<ApiResponse<unknow
 
   return { success: true, data: logs ?? [] };
 }
+
+// ---------------------------------------------------------------------------
+// Action 6 : Activation complète du compte administrateur (Zéro friction)
+// Définit le mot de passe, enregistre le profil et active le mandat en une seule étape.
+// ---------------------------------------------------------------------------
+
+const activateAdminAccountSchema = z
+  .object({
+    appointmentId: z.string().uuid("Mandat invalide."),
+    fullName: z.string().min(2, "Le nom doit comporter au moins 2 caractères.").max(100),
+    department: z.string().max(100).optional(),
+    password: z.string().min(8, "Le mot de passe doit comporter au moins 8 caractères.").max(100),
+    confirmPassword: z.string(),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide.").optional(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Les deux mots de passe ne correspondent pas.",
+    path: ["confirmPassword"],
+  });
+
+export async function activateAdminAccountAction(
+  formData: FormData
+): Promise<ApiResponse<{ redirectTo: string }>> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      success: false,
+      error: "Non autorisé. Veuillez cliquer à nouveau sur le lien de votre email.",
+      code: "UNAUTHORIZED",
+    };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") {
+    return {
+      success: false,
+      error: "Seul un administrateur invité peut activer ce compte.",
+      code: "FORBIDDEN",
+    };
+  }
+
+  const parsed = activateAdminAccountSchema.safeParse({
+    appointmentId: formData.get("appointmentId"),
+    fullName: formData.get("fullName"),
+    department: formData.get("department") || undefined,
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+    startDate: formData.get("startDate") || new Date().toISOString().split("T")[0],
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0].message,
+      code: "VALIDATION_ERROR",
+    };
+  }
+
+  const { appointmentId, fullName, department, password, startDate } = parsed.data;
+  const adminClient = createSupabaseAdminClient();
+
+  // 1. Définir le mot de passe utilisateur dans Supabase Auth
+  const { error: pwdError } = await adminClient.auth.admin.updateUserById(user.id, {
+    password,
+    email_confirm: true,
+  });
+
+  if (pwdError) {
+    return {
+      success: false,
+      error: `Erreur lors de la définition du mot de passe : ${pwdError.message}`,
+    };
+  }
+
+  // 2. Mettre à jour les informations du profil
+  await adminClient
+    .from("profiles")
+    .update({
+      full_name: fullName,
+      department: department ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  // 3. Activer le mandat d'administrateur
+  const today = startDate || new Date().toISOString().split("T")[0];
+  const { error: apptError } = await adminClient
+    .from("admin_appointments")
+    .update({
+      status: "active",
+      start_date: today,
+      invitation_accepted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", appointmentId)
+    .eq("admin_id", user.id);
+
+  if (apptError) {
+    if (
+      apptError.message?.includes("seul administrateur") ||
+      apptError.message?.includes("idx_admin_appointments_single_active")
+    ) {
+      return {
+        success: false,
+        error: "Un autre administrateur est déjà en fonction. Veuillez contacter la direction.",
+        code: "SINGLE_ADMIN_CONSTRAINT",
+      };
+    }
+    return { success: false, error: "Erreur lors de l'activation du mandat." };
+  }
+
+  // 4. Journal d'audit
+  await writeAuditLog({
+    actorId: user.id,
+    action: "admin.account_activated",
+    targetId: appointmentId,
+    targetType: "admin_appointment",
+    details: {
+      admin_id: user.id,
+      admin_name: fullName,
+      start_date: today,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/appointments");
+  revalidatePath("/admin/profile/complete");
+
+  return { success: true, data: { redirectTo: "/admin" } };
+}

@@ -44,10 +44,12 @@ export async function GET(request: NextRequest) {
       }
     );
 
+    let authenticated = false;
+
     if (code) {
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
       if (!exchangeError) {
-        return response;
+        authenticated = true;
       }
     } else if (token_hash && type) {
       const { error: verifyError } = await supabase.auth.verifyOtp({
@@ -55,8 +57,43 @@ export async function GET(request: NextRequest) {
         type: type as any,
       });
       if (!verifyError) {
-        return response;
+        authenticated = true;
       }
+    }
+
+    if (authenticated) {
+      // Déterminer la redirection optimale selon le rôle
+      let destination = next;
+
+      // Si type=invite ou si next pointe vers le confirmed par défaut, orienter vers admin
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .single();
+
+          if (profile?.role === "admin" || type === "invite") {
+            destination = "/admin/profile/complete";
+          } else if (profile?.role === "director") {
+            destination = "/admin";
+          }
+        }
+      } catch {
+        // En cas d'erreur de lecture du profil, conserver 'next'
+      }
+
+      const finalRedirectUrl = new URL(destination, origin);
+      const successResponse = NextResponse.redirect(finalRedirectUrl);
+
+      // Copier les cookies vers la réponse finale
+      response.cookies.getAll().forEach((c) => {
+        successResponse.cookies.set(c.name, c.value);
+      });
+
+      return successResponse;
     }
 
     return NextResponse.redirect(
