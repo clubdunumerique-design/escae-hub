@@ -18,6 +18,7 @@ export default function ConfirmedPage() {
 
   useEffect(() => {
     let isMounted = true;
+    let isFinishingUser = false;
     const supabase = createSupabaseBrowserClient();
     const adminInvitationFlow =
       new URLSearchParams(window.location.search).get("flow") === "admin-invitation";
@@ -47,6 +48,8 @@ export default function ConfirmedPage() {
           email?: string;
           email_confirmed_at?: string | null;
         }) => {
+          if (isFinishingUser) return;
+          isFinishingUser = true;
           await completeStudentMatriculeClaimAction();
           // The server callback has already accepted this invitation atomically.
           // Keep the old hash-link path working for invitations issued before it.
@@ -81,6 +84,29 @@ export default function ConfirmedPage() {
               setStatus("error");
             }
             return;
+          }
+
+          // Hosted Supabase can redirect an invitation straight to Site URL and
+          // put the session in the URL fragment. Fragments never reach the
+          // server, so persist the session here before accepting the invitation
+          // through the authenticated server action.
+          const accessToken = params.get("access_token");
+          const refreshToken = params.get("refresh_token");
+          if (accessToken && refreshToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) throw error;
+            if (data.session?.user) {
+              await finishAuthenticatedUser(data.session.user);
+              window.history.replaceState(
+                null,
+                "",
+                window.location.pathname + window.location.search,
+              );
+              return;
+            }
           }
         }
 
