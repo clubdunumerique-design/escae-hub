@@ -53,12 +53,12 @@ export default function ConfirmedPage() {
           await completeStudentMatriculeClaimAction();
           // The server callback has already accepted this invitation atomically.
           // Keep the old hash-link path working for invitations issued before it.
-          const legacyInviteLink =
-            !adminInvitationFlow && window.location.hash.includes("type=invite");
-          const invitation = legacyInviteLink ? await completeAdminInvitationAction() : null;
-          if (legacyInviteLink && !invitation?.accepted) {
+          const invitationToken = window.location.hash.includes("access_token");
+          const shouldCheckInvitation = !adminInvitationFlow && invitationToken;
+          const invitation = shouldCheckInvitation ? await completeAdminInvitationAction() : null;
+          if (invitation?.invitationPending && !invitation.accepted) {
             setErrorMessage(
-              "Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.",
+              "Votre lien a confirmé l’adresse, mais le rôle administrateur n’a pas pu être activé. Demandez au directeur de renvoyer l’invitation.",
             );
             setStatus("error");
             return;
@@ -68,6 +68,13 @@ export default function ConfirmedPage() {
           if (adminInvitationFlow && role !== "admin") {
             setErrorMessage(
               "Votre adresse a été confirmée, mais votre accès administrateur n’a pas pu être activé. Contactez le directeur.",
+            );
+            setStatus("error");
+            return;
+          }
+          if (invitation?.invitationPending && role !== "admin") {
+            setErrorMessage(
+              "La nomination est encore en attente. Contactez le directeur pour vérifier votre invitation.",
             );
             setStatus("error");
             return;

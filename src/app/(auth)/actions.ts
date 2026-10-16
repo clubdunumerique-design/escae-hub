@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { getPublicAppUrl } from "@/lib/config/app-url";
 
 export async function loginAction(
-  formData: FormData
+  formData: FormData,
 ): Promise<ApiResponse<{ id: string; role: string }>> {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -45,9 +45,7 @@ export async function loginAction(
   return { success: true, data: { id: data.user.id, role: profile?.role ?? "student" } };
 }
 
-export async function registerAction(
-  formData: FormData
-): Promise<ApiResponse<{ id: string }>> {
+export async function registerAction(formData: FormData): Promise<ApiResponse<{ id: string }>> {
   const fullName = formData.get("fullName") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -63,17 +61,23 @@ export async function registerAction(
   });
 
   if (!parsed.success) {
-    return { success: false, error: parsed.error.errors[0]?.message || "Veuillez vérifier les champs du formulaire." };
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || "Veuillez vérifier les champs du formulaire.",
+    };
   }
 
   const rawMatricule = parsed.data.studentId?.trim().toUpperCase() || null;
   const appUrl = getPublicAppUrl();
   if (!appUrl) {
-    return { success: false, error: "Le service d'inscription n'est pas configuré correctement. Contactez le support." };
+    return {
+      success: false,
+      error: "Le service d'inscription n'est pas configuré correctement. Contactez le support.",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
-  
+
   // 2. Inscription dans Supabase Auth
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
@@ -88,7 +92,10 @@ export async function registerAction(
   });
 
   if (error) {
-    return { success: false, error: "L'inscription a échoué. L'adresse e-mail est peut-être déjà utilisée." };
+    return {
+      success: false,
+      error: "L'inscription a échoué. L'adresse e-mail est peut-être déjà utilisée.",
+    };
   }
 
   if (!data.user) {
@@ -116,7 +123,9 @@ export async function logoutAction(): Promise<void> {
 /** Retry the automatic match after client-side confirmation flows establish a session. */
 export async function completeStudentMatriculeClaimAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user?.email_confirmed_at) return;
 
   const candidateMatricule = user.user_metadata?.student_id;
@@ -126,20 +135,52 @@ export async function completeStudentMatriculeClaimAction(): Promise<void> {
 }
 
 /** Accept a pending director-issued invitation only from its confirmed email session. */
-export async function completeAdminInvitationAction(): Promise<{ accepted: boolean; role: string | null }> {
+export async function completeAdminInvitationAction(): Promise<{
+  accepted: boolean;
+  invitationPending: boolean;
+  role: string | null;
+}> {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email_confirmed_at) return { accepted: false, role: null };
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email_confirmed_at) {
+    return { accepted: false, invitationPending: false, role: null };
+  }
 
   const admin = createSupabaseAdminClient();
+  const { data: appointment, error: appointmentError } = await admin
+    .from("admin_appointments")
+    .select("id")
+    .eq("admin_id", user.id)
+    .eq("status", "pending_acceptance")
+    .is("invitation_accepted_at", null)
+    .maybeSingle();
+  if (appointmentError) throw appointmentError;
+
+  if (!appointment) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    return { accepted: false, invitationPending: false, role: profile?.role ?? null };
+  }
+
   const { data, error } = await admin.rpc("accept_admin_invitation", { p_user_id: user.id });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  return { accepted: !error && data === true && profile?.role === "admin", role: profile?.role ?? null };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  return {
+    accepted: !error && data === true && profile?.role === "admin",
+    invitationPending: true,
+    role: profile?.role ?? null,
+  };
 }
 
-export async function verifyOtpAction(
-  formData: FormData
-): Promise<ApiResponse<void>> {
+export async function verifyOtpAction(formData: FormData): Promise<ApiResponse<void>> {
   const email = formData.get("email") as string;
   const token = formData.get("token") as string;
 
@@ -158,7 +199,9 @@ export async function verifyOtpAction(
     return { success: false, error: "Code invalide ou expiré." };
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user?.email_confirmed_at && user.user_metadata?.student_id) {
     await claimCollectedMatricule(user.id, user.user_metadata.student_id);
   }
@@ -167,9 +210,7 @@ export async function verifyOtpAction(
   return { success: true, data: undefined };
 }
 
-export async function resendOtpAction(
-  email: string
-): Promise<ApiResponse<void>> {
+export async function resendOtpAction(email: string): Promise<ApiResponse<void>> {
   if (!email) {
     return { success: false, error: "Adresse email requise." };
   }
@@ -181,15 +222,16 @@ export async function resendOtpAction(
   });
 
   if (error) {
-    return { success: false, error: "Délai de renvoi non atteint ou erreur réseau. Veuillez patienter une minute." };
+    return {
+      success: false,
+      error: "Délai de renvoi non atteint ou erreur réseau. Veuillez patienter une minute.",
+    };
   }
 
   return { success: true, data: undefined };
 }
 
-export async function forgotPasswordAction(
-  formData: FormData
-): Promise<ApiResponse<void>> {
+export async function forgotPasswordAction(formData: FormData): Promise<ApiResponse<void>> {
   const email = formData.get("email") as string;
 
   if (!email) {
@@ -198,7 +240,10 @@ export async function forgotPasswordAction(
 
   const appUrl = getPublicAppUrl();
   if (!appUrl) {
-    return { success: false, error: "Le service de récupération n'est pas configuré correctement. Contactez le support." };
+    return {
+      success: false,
+      error: "Le service de récupération n'est pas configuré correctement. Contactez le support.",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -214,9 +259,7 @@ export async function forgotPasswordAction(
   return { success: true, data: undefined };
 }
 
-export async function resetPasswordAction(
-  formData: FormData
-): Promise<ApiResponse<void>> {
+export async function resetPasswordAction(formData: FormData): Promise<ApiResponse<void>> {
   const password = formData.get("password") as string;
 
   if (!password || password.length < 8) {
@@ -227,7 +270,10 @@ export async function resetPasswordAction(
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    return { success: false, error: "Impossible de réinitialiser le mot de passe. Le lien a peut-être expiré." };
+    return {
+      success: false,
+      error: "Impossible de réinitialiser le mot de passe. Le lien a peut-être expiré.",
+    };
   }
 
   revalidatePath("/", "layout");
