@@ -233,6 +233,38 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect((result as any).error).toContain("Permissions insuffisantes");
     });
 
+    it("doit empêcher le staff de valider un matricule au format invalide", async () => {
+      mockServerClient.auth.getUser.mockResolvedValue({
+        data: { user: { id: "admin-1", email: "admin@escae.bj" } },
+        error: null,
+      });
+      mockServerClient.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: "admin", full_name: "Admin" }, error: null }),
+          }),
+        }),
+      });
+
+      const update = vi.fn();
+      mockAdminClient.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: VALID_UUID_1, matricule: "56008", full_name: "Test", email: "test@gmail.com", claimed_by_user_id: null },
+              error: null,
+            }),
+          }),
+        }),
+        update,
+      });
+
+      const result = await approveMatriculeAction(VALID_UUID_1);
+      expect(result.success).toBe(false);
+      expect((result as any).error).toContain("ETU-AAAA-NNNN");
+      expect(update).not.toHaveBeenCalled();
+    });
+
     it("doit approuver le matricule et mettre à jour le profil étudiant lié si l'appelant est admin", async () => {
       mockServerClient.auth.getUser.mockResolvedValue({
         data: { user: { id: "admin-1", email: "admin@escae.bj" } },

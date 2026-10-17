@@ -395,6 +395,13 @@ export async function approveMatriculeAction(
   if (!entry) {
     return { success: false, error: "Fiche de matricule introuvable." };
   }
+  if (!STUDENT_MATRICULE_PATTERN.test(entry.matricule.trim())) {
+    return {
+      success: false,
+      error: "Ce matricule ne peut pas être validé : format attendu ETU-AAAA-NNNN. Demandez une correction à l'étudiant.",
+      code: "VALIDATION_ERROR",
+    };
+  }
 
   const now = new Date().toISOString();
 

@@ -180,7 +180,7 @@ export function MatriculeRegistryTable({
       {/* ── Tableau du registre ── */}
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 text-[11px] font-semibold uppercase tracking-wider text-white/40 bg-white/2">
                 <th className="px-5 py-3.5">Étudiant</th>
@@ -193,8 +193,10 @@ export function MatriculeRegistryTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {filteredEntries.map((entry) => (
-                <tr key={entry.id} className="transition-colors hover:bg-white/4">
+              {filteredEntries.map((entry) => {
+                const formatIsValid = OFFICIAL_MATRICULE_PATTERN.test(entry.matricule.trim());
+                return (
+                <tr key={entry.id} className={`transition-colors hover:bg-white/[0.045] ${formatIsValid ? "" : "bg-rose-500/[0.035]"}`}>
                   {/* Étudiant */}
                   <td className="px-5 py-3.5">
                     <div className="font-semibold text-white">{entry.full_name}</div>
@@ -203,9 +205,15 @@ export function MatriculeRegistryTable({
 
                   {/* Matricule */}
                   <td className="px-5 py-3.5">
-                    <span className="font-mono text-xs font-bold text-[#05F228] bg-[#03A61C]/15 border border-[#03A61C]/30 rounded-md px-2 py-1">
+                    <span className={`inline-block whitespace-nowrap rounded-lg border px-2.5 py-1.5 font-mono text-xs font-bold tracking-wide ${formatIsValid ? "border-[#03A61C]/30 bg-[#03A61C]/15 text-[#05F228]" : "border-rose-400/30 bg-rose-400/10 text-rose-300"}`}>
                       {entry.matricule}
                     </span>
+                    {!formatIsValid && (
+                      <span className="mt-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-rose-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                        Correction requise · ETU-AAAA-NNNN
+                      </span>
+                    )}
                   </td>
 
                   {/* Filière / Niveau */}
@@ -221,8 +229,8 @@ export function MatriculeRegistryTable({
 
                   {/* Statut */}
                   <td className="px-5 py-3.5">
-                    <Badge variant={STATUS_VARIANT[entry.verification_status]}>
-                      {STATUS_LABELS[entry.verification_status]}
+                    <Badge variant={formatIsValid ? STATUS_VARIANT[entry.verification_status] : "danger"}>
+                      {formatIsValid ? STATUS_LABELS[entry.verification_status] : "Format invalide"}
                     </Badge>
                     {entry.rejection_reason && (
                       <p className="mt-1 text-[11px] text-red-400 max-w-[160px] truncate" title={entry.rejection_reason}>
@@ -245,12 +253,12 @@ export function MatriculeRegistryTable({
 
                   {/* Actions de validation */}
                   <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {entry.verification_status !== "verified" && (
+                    <div className="flex items-center justify-end gap-2">
+                      {entry.verification_status !== "verified" && formatIsValid && (
                         <button
                           onClick={() => handleApprove(entry.id)}
                           disabled={isPending}
-                          className="rounded-lg bg-[#03A61C]/20 border border-[#03A61C]/30 px-2.5 py-1.5 text-xs font-semibold text-[#05F228] transition hover:bg-[#03A61C] hover:text-white disabled:opacity-50"
+                          className="rounded-lg border border-[#03A61C]/30 bg-[#03A61C]/15 px-3 py-2 text-xs font-semibold text-[#65f274] transition hover:border-[#03A61C]/60 hover:bg-[#03A61C]/30 disabled:opacity-50"
                           title="Valider officiellement ce matricule"
                         >
                           Valider
@@ -264,26 +272,30 @@ export function MatriculeRegistryTable({
                             setRejectReason("");
                           }}
                           disabled={isPending}
-                          className="rounded-lg bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 text-xs font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                          className="rounded-lg border border-rose-400/25 bg-rose-400/[0.07] px-3 py-2 text-xs font-semibold text-rose-300 transition hover:border-rose-400/50 hover:bg-rose-400/15 disabled:opacity-50"
                           title="Rejeter la demande"
                         >
                           Rejeter
                         </button>
                       )}
-                      {!OFFICIAL_MATRICULE_PATTERN.test(entry.matricule.trim()) && (
+                      {!formatIsValid && (
                         <button
                           onClick={() => handleReminder(entry.id)}
                           disabled={isPending}
-                          className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-400/20 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/[0.08] px-3 py-2 text-xs font-semibold text-amber-200 transition hover:border-amber-400/50 hover:bg-amber-400/15 disabled:opacity-50"
                           title={`Demander la correction du format ETU-AAAA-NNNN à ${entry.email}`}
                         >
-                          Relancer par e-mail
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 7.5 12 13l9-5.5M5.25 5.25h13.5A2.25 2.25 0 0 1 21 7.5v9a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 16.5v-9a2.25 2.25 0 0 1 2.25-2.25Z" />
+                          </svg>
+                          Rappel e-mail
                         </button>
                       )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
 
               {filteredEntries.length === 0 && (
                 <tr>
