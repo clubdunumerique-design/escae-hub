@@ -167,7 +167,7 @@ export function PublicMatriculeForm() {
             name="firstName"
             type="text"
             required
-            placeholder="Ex : Repotinard"
+            placeholder="Ex : Romaric"
             disabled={isPending}
             className={inputClass}
           />
