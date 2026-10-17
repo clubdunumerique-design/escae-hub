@@ -302,6 +302,15 @@ export async function submitStudentMatriculeAction(
     },
   });
 
+  // If a confirmed student is already signed in, attempt to match this newly
+  // submitted record immediately. The database RPC still checks email, name,
+  // student role, ownership, and confirmation atomically.
+  let matchedSignedInUser = false;
+  if (signedInUser?.email_confirmed_at) {
+    const { matched } = await claimCollectedMatricule(signedInUser.id, normalizedMatricule);
+    matchedSignedInUser = matched;
+  }
+
   revalidatePath("/admin/matricules");
 
   return {
@@ -310,7 +319,7 @@ export async function submitStudentMatriculeAction(
       matricule: normalizedMatricule,
       fullName,
       status: "pending",
-      isExistingUser: false,
+      isExistingUser: matchedSignedInUser,
     },
   };
 }

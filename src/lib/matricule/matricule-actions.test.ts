@@ -197,6 +197,44 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(insertedData.claimed_by_user_id).toBeNull();
       expect(mockAdminClient.from).not.toHaveBeenCalledWith("profiles");
     });
+
+    it("tente le rapprochement pour un étudiant connecté qui renseigne sa fiche depuis le lien", async () => {
+      mockServerClient.auth.getUser.mockResolvedValue({
+        data: { user: { id: "student-1", email: "awa.koffi@gmail.com", email_confirmed_at: "2026-10-17T10:00:00Z" } },
+        error: null,
+      });
+      mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "student_matricule_registry") {
+          return {
+            select: vi.fn().mockReturnValue({
+              ilike: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { id: VALID_UUID_1 }, error: null }),
+              }),
+            }),
+          };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      });
+
+      const result = await submitStudentMatriculeAction({
+        firstName: "Awa",
+        lastName: "Koffi",
+        matricule: "ETU-2026-0024",
+        email: "awa.koffi@gmail.com",
+      });
+
+      expect(result.success).toBe(true);
+      expect((result as any).data.isExistingUser).toBe(true);
+      expect(mockAdminClient.rpc).toHaveBeenCalledWith("claim_student_matricule", {
+        p_user_id: "student-1",
+        p_matricule: "ETU-2026-0024",
+      });
+    });
   });
 
   // -------------------------------------------------------------------------

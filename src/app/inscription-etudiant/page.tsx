@@ -65,7 +65,7 @@ export default function InscriptionEtudiantPage() {
             </h1>
 
             <p className="mt-3 text-sm sm:text-base text-white/60 max-w-lg mx-auto leading-relaxed">
-              Enregistrez votre matricule officiel ESCAE pour permettre la certification de votre profil et débloquer l&apos;accès complet à la soumission des projets d&apos;innovation.
+              Enregistrez votre matricule officiel ESCAE pour rapprocher votre profil. La soumission de projets reste accessible à tous les étudiants.
             </p>
           </div>
 

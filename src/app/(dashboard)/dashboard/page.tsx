@@ -71,18 +71,25 @@ export default async function DashboardPage() {
     <div>
       {/* Le rapprochement du matricule informe le profil, sans bloquer les projets. */}
       {profile && profile.role === "student" && !profile.is_verified && (
-        <div className="mb-6 flex items-start gap-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
           <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-500/20">
             <svg className="h-4 w-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <div>
-            <p className="font-semibold text-amber-300">Matricule non rapproché</p>
-            <p className="mt-1 text-sm text-amber-200/70">
-              Le rapprochement automatique n&apos;a pas encore trouvé de correspondance confirmée. Vous pouvez créer et soumettre des projets normalement.
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-amber-200">Matricule non rapproché</p>
+            <p className="mt-1 text-sm leading-relaxed text-amber-100/70">
+              Renseignez votre matricule officiel depuis le formulaire d&apos;inscription, avec le même nom et la même adresse Gmail. Vous pouvez continuer à soumettre vos projets normalement.
             </p>
           </div>
+          <Link
+            href="/inscription-etudiant"
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15 focus:outline-none focus:ring-2 focus:ring-amber-300/50"
+          >
+            Renseigner mon matricule
+            <span aria-hidden="true">→</span>
+          </Link>
         </div>
       )}
 
