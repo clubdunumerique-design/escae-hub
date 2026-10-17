@@ -36,9 +36,9 @@ export async function loginAction(
     .single();
 
   // Re-tenter la correspondance pour les comptes confirmés, y compris les anciens comptes.
-  const candidateMatricule = data.user.user_metadata?.student_id ?? profile?.student_id;
-  if (data.user.email_confirmed_at && candidateMatricule) {
-    await claimCollectedMatricule(data.user.id, candidateMatricule);
+  if (data.user.email_confirmed_at && (profile?.role === "student" || !profile?.role)) {
+    const candidateMatricule = data.user.user_metadata?.student_id ?? profile?.student_id;
+    await claimCollectedMatricule(data.user.id, candidateMatricule ?? null);
   }
 
   revalidatePath("/", "layout");
@@ -129,9 +129,7 @@ export async function completeStudentMatriculeClaimAction(): Promise<void> {
   if (!user?.email_confirmed_at) return;
 
   const candidateMatricule = user.user_metadata?.student_id;
-  if (candidateMatricule) {
-    await claimCollectedMatricule(user.id, candidateMatricule);
-  }
+  await claimCollectedMatricule(user.id, candidateMatricule ?? null);
 }
 
 /** Accept a pending director-issued invitation only from its confirmed email session. */

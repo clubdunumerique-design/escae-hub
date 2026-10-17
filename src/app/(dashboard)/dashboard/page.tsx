@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
+import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export default async function DashboardPage() {
   const [profileRes, projectsRes] = await Promise.all([
     supabase
       .from("profiles")
-      .select("full_name, role, is_verified")
+      .select("full_name, role, is_verified, student_id")
       .eq("id", user.id)
       .single(),
     supabase
@@ -47,8 +48,29 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false }),
   ]);
 
-  const profile = profileRes.data;
+  let profile = profileRes.data;
   const projects = projectsRes.data;
+
+  // Retry matching for a confirmed student who visits after their registry
+  // record has been validated or corrected. This also repairs existing accounts.
+  if (
+    profile?.role === "student" &&
+    !profile.is_verified &&
+    user.email_confirmed_at
+  ) {
+    const candidateMatricule = user.user_metadata?.student_id ?? profile?.student_id;
+    const { matched } = await claimCollectedMatricule(user.id, candidateMatricule ?? null);
+    if (matched) {
+      const { data: refreshedProfile } = await supabase
+        .from("profiles")
+        .select("full_name, role, is_verified, student_id")
+        .eq("id", user.id)
+        .single();
+      if (refreshedProfile) {
+        profile = refreshedProfile;
+      }
+    }
+  }
 
   // Rediriger les admin/director vers leur espace dédié
   if (profile?.role === "admin" || profile?.role === "director") {

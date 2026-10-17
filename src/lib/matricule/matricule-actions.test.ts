@@ -478,6 +478,15 @@ describe("Matricule Actions — Soumission et Vérification", () => {
             }),
           };
         }
+        if (table === "profiles") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: "existing-student" }, error: null }),
+              }),
+            }),
+          };
+        }
         if (table === "audit_logs") {
           return {
             insert: vi.fn().mockResolvedValue({ error: null }),
@@ -498,6 +507,10 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(result.success).toBe(true);
       expect(insertedOfficial.verification_status).toBe("verified");
       expect(insertedOfficial.verified_by).toBe("admin-1");
+      expect(mockAdminClient.rpc).toHaveBeenCalledWith("claim_student_matricule", {
+        p_user_id: "existing-student",
+        p_matricule: "ETU-2024-0002",
+      });
     });
   });
 });

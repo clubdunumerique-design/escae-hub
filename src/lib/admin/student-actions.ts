@@ -45,22 +45,47 @@ export async function verifyStudentAction(
   if (verified) {
     const { data: targetProfile } = await adminClient
       .from("profiles")
-      .select("student_id, role")
+      .select("student_id, role, email")
       .eq("id", studentId)
       .single();
 
-    if (!targetProfile || targetProfile.role !== "student" || !targetProfile.student_id) {
-      return { success: false, error: "Aucun matricule candidat à rapprocher.", code: "NOT_MATCHED" };
+    if (!targetProfile || targetProfile.role !== "student") {
+      return { success: false, error: "Étudiant introuvable.", code: "NOT_MATCHED" };
+    }
+
+    let candidateMatricule = targetProfile.student_id;
+    if (!candidateMatricule && targetProfile.email) {
+      const { data: reg } = await adminClient
+        .from("student_matricule_registry")
+        .select("matricule")
+        .ilike("email", targetProfile.email.trim())
+        .neq("verification_status", "rejected")
+        .maybeSingle();
+      candidateMatricule = reg?.matricule ?? null;
+    }
+
+    // Si l'étudiant n'a pas encore cliqué sur le lien de confirmation Gmail,
+    // la validation manuelle par le personnel confirme son email pour permettre le rapprochement.
+    try {
+      const { data: authUser } = await adminClient.auth.admin.getUserById(studentId);
+      if (authUser?.user && !authUser.user.email_confirmed_at) {
+        await adminClient.auth.admin.updateUserById(studentId, {
+          email_confirm: true,
+        });
+      }
+    } catch {
+      // Ignorer si échec de l'admin auth
     }
 
     const { data: matched, error: matchError } = await adminClient.rpc("claim_student_matricule", {
       p_user_id: studentId,
-      p_matricule: targetProfile.student_id,
+      p_matricule: candidateMatricule,
     });
     if (matchError || matched !== true) {
-      return { success: false, error: "Le compte ne correspond pas à une fiche collectée avec email confirmé.", code: "NOT_MATCHED" };
+      return { success: false, error: "Le compte ne correspond pas à une fiche collectée avec email et nom valides.", code: "NOT_MATCHED" };
     }
     revalidatePath("/admin/users");
+    revalidatePath("/admin/matricules");
     revalidatePath("/admin");
     return { success: true, data: undefined };
   }
@@ -73,6 +98,15 @@ export async function verifyStudentAction(
     })
     .eq("id", studentId);
 
+  await adminClient
+    .from("student_matricule_registry")
+    .update({
+      claimed_by_user_id: null,
+      claimed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("claimed_by_user_id", studentId);
+
   if (error) {
     return {
       success: false,
@@ -81,6 +115,7 @@ export async function verifyStudentAction(
   }
 
   revalidatePath("/admin/users");
+  revalidatePath("/admin/matricules");
   revalidatePath("/admin");
   return { success: true, data: undefined };
 }

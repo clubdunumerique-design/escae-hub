@@ -92,8 +92,8 @@ export async function GET(request: NextRequest) {
 
         // The database procedure independently checks email confirmation and performs
         // the claim atomically. Failures leave the account active but unverified.
-        if (user.email_confirmed_at && user.user_metadata?.student_id) {
-          await claimCollectedMatricule(user.id, user.user_metadata.student_id);
+        if (user.email_confirmed_at) {
+          await claimCollectedMatricule(user.id, user.user_metadata?.student_id ?? null);
         }
 
         const { data: profile, error: profileError } = await supabase

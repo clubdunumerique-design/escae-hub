@@ -134,6 +134,12 @@ export default async function AdminUsersPage() {
                     await verifyStudentAction(profile.id, false);
                   };
 
+                  // Server Action : déclencher le rapprochement du matricule.
+                  const verifyAction = async () => {
+                    "use server";
+                    await verifyStudentAction(profile.id, true);
+                  };
+
                   // Server Actions : changement de rôle (director only)
                   const promoteToAdminAction = async () => {
                     "use server";
@@ -209,7 +215,16 @@ export default async function AdminUsersPage() {
                                 </button>
                               </form>
                             ) : (
-                              <span className="text-xs text-white/30">Rapprochement automatique</span>
+                              <form action={verifyAction}>
+                                <button
+                                  type="submit"
+                                  id={`verify-${profile.id}`}
+                                  className="rounded-lg bg-[#03A61C]/15 px-3 py-1.5 text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/30"
+                                  title="Rapprocher ce compte avec sa fiche de matricule"
+                                >
+                                  Rapprocher
+                                </button>
+                              </form>
                             )
                           )}
 

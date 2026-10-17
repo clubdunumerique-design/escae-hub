@@ -438,7 +438,7 @@ export async function approveMatriculeAction(
     const { data: matchedProfile } = await adminClient
       .from("profiles")
       .select("id")
-      .eq("email", entry.email)
+      .ilike("email", entry.email.trim())
       .maybeSingle();
     targetStudentId = matchedProfile?.id ?? null;
   }
@@ -693,6 +693,23 @@ export async function createOfficialMatriculeAction(
       return { success: false, error: "Ce matricule existe déjà dans le registre." };
     }
     return { success: false, error: "Erreur lors de l'enregistrement." };
+  }
+
+  // If the student already has a confirmed Hub account, link it immediately;
+  // otherwise registration confirmation/login/dashboard retries this claim.
+  const { data: matchingProfile } = await adminClient
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+  if (matchingProfile?.id) {
+    const { error: claimError } = await adminClient.rpc("claim_student_matricule", {
+      p_user_id: matchingProfile.id,
+      p_matricule: normalizedMatricule,
+    });
+    if (claimError) {
+      console.error("[matricule] Échec de la correspondance après pré-enregistrement.");
+    }
   }
 
   await writeAuditLog({
