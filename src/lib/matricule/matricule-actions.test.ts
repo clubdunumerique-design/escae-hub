@@ -73,7 +73,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       const result = await submitStudentMatriculeAction({
         firstName: "Jean",
         lastName: "Dupont",
-        matricule: "ESCAE-2024-001",
+        matricule: "ETU-2024-0001",
         email: "jean.dupont@gmail.com",
         fieldOfStudy: "Génie Logiciel",
         website: "http://spam-bot.com", // honeypot
@@ -96,6 +96,18 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect((result as any).error).toBeDefined();
     });
 
+    it("doit refuser un matricule fantaisiste comme 56008 côté serveur", async () => {
+      const result = await submitStudentMatriculeAction({
+        firstName: "Jean",
+        lastName: "Dupont",
+        matricule: "56008",
+        email: "jean.dupont@gmail.com",
+      });
+      expect(result.success).toBe(false);
+      expect((result as any).error).toContain("ETU-AAAA-NNNN");
+      expect(mockAdminClient.rpc).not.toHaveBeenCalled();
+    });
+
     it("doit refuser un matricule déjà existant dans le registre", async () => {
       // Mock de la requête SELECT pour trouver un doublon
       mockAdminClient.from.mockImplementation((table: string) => {
@@ -106,7 +118,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
                 maybeSingle: vi.fn().mockResolvedValue({
                   data: {
                     id: VALID_UUID_1,
-                    matricule: "ESCAE-2024-001",
+                    matricule: "ETU-2024-0001",
                     verification_status: "verified",
                   },
                   error: null,
@@ -121,7 +133,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       const result = await submitStudentMatriculeAction({
         firstName: "Jean",
         lastName: "Dupont",
-        matricule: "escae-2024-001",
+        matricule: "etu-2024-0001",
         email: "jean@gmail.com",
         fieldOfStudy: "Informatique",
       });
@@ -169,7 +181,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       const result = await submitStudentMatriculeAction({
         firstName: "Awa",
         lastName: "Koffi",
-        matricule: "escae-2024-999",
+        matricule: "etu-2024-0999",
         email: "awa.koffi@gmail.com",
         fieldOfStudy: "Marketing Digital",
         academicLevel: "Licence 2",
@@ -177,7 +189,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
 
       expect(result.success).toBe(true);
       expect(insertedData).toBeDefined();
-      expect(insertedData.matricule).toBe("ESCAE-2024-999"); // Normalisé en MAJUSCULES
+      expect(insertedData.matricule).toBe("ETU-2024-0999"); // Normalisé en MAJUSCULES
       expect(insertedData.first_name).toBe("Awa");
       expect(insertedData.last_name).toBe("Koffi");
       expect(insertedData.full_name).toBe("Awa Koffi");
@@ -253,7 +265,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
                 single: vi.fn().mockResolvedValue({
                   data: {
                     id: VALID_UUID_1,
-                    matricule: "ESCAE-2024-555",
+                    matricule: "ETU-2024-0555",
                     full_name: "Adama Traore",
                     email: "adama@escae.bj",
                     claimed_by_user_id: "user-student-789",
@@ -284,7 +296,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(updatedRegistryPayload.verified_by).toBe("admin-1");
       expect(mockAdminClient.rpc).toHaveBeenCalledWith("claim_student_matricule", {
         p_user_id: "user-student-789",
-        p_matricule: "ESCAE-2024-555",
+        p_matricule: "ETU-2024-0555",
       });
     });
 
@@ -407,7 +419,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       const result = await createOfficialMatriculeAction({
         firstName: "Marc",
         lastName: "Hounnou",
-        matricule: "ESCAE-2024-OFFICIEL",
+        matricule: "ETU-2024-0002",
         email: "marc.hounnou@escae.bj",
         fieldOfStudy: "Génie Informatique",
         is_pre_verified: true,

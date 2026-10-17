@@ -200,11 +200,14 @@ export function PublicMatriculeForm() {
           type="text"
           required
           placeholder="Ex : ETU-2026-XXXX"
+          pattern="ETU-[0-9]{4}-[0-9]{4}"
+          title="Format attendu : ETU-AAAA-NNNN (ex. ETU-2026-0024)"
+          maxLength={13}
           disabled={isPending}
           className={`${inputClass} font-mono tracking-wider uppercase`}
         />
         <p className="mt-1.5 text-[11px] leading-relaxed text-white/65">
-          Saisissez votre matricule tel qu&apos;il figure sur votre carte d&apos;étudiant ou votre attestation d&apos;inscription.
+          Format obligatoire : ETU-AAAA-NNNN, par exemple ETU-2026-0024. Recopiez le matricule de votre carte ou attestation.
         </p>
       </div>
 

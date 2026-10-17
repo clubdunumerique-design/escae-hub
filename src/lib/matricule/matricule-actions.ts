@@ -15,6 +15,8 @@ import { sendNotification } from "@/lib/notifications/send";
 import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
 import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
+import nodemailer from "nodemailer";
+import { STUDENT_MATRICULE_PATTERN } from "@/lib/validations/auth";
 
 // ---------------------------------------------------------------------------
 // Schémas de validation
@@ -31,12 +33,7 @@ const publicMatriculeSubmissionSchema = z.object({
     .min(2, "Le nom doit comporter au moins 2 caractères.")
     .max(60, "Le nom est trop long.")
     .trim(),
-  matricule: z
-    .string()
-    .min(3, "Le matricule doit comporter au moins 3 caractères.")
-    .max(30, "Le matricule ne doit pas dépasser 30 caractères.")
-    .regex(/^[A-Za-z0-9\-_./]+$/, "Format de matricule invalide (caractères alphanumériques autorisés).")
-    .trim(),
+  matricule: z.string().trim().regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024)."),
   email: z.string().email("Adresse email invalide.").trim().toLowerCase()
     .refine((value) => value.endsWith("@gmail.com"), "Veuillez utiliser une adresse Gmail."),
   fieldOfStudy: z.string().max(100).optional(),
@@ -52,7 +49,7 @@ const reviewMatriculeSchema = z.object({
 const manualAddMatriculeSchema = z.object({
   firstName: z.string().min(2).max(60).trim(),
   lastName: z.string().min(2).max(60).trim(),
-  matricule: z.string().min(3).max(30).trim(),
+  matricule: z.string().trim().regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024)."),
   email: z.string().email().trim().toLowerCase(),
   fieldOfStudy: z.string().max(100).optional(),
   academicLevel: z.string().max(50).optional(),
@@ -555,6 +552,70 @@ export async function rejectMatriculeAction(
   revalidatePath("/admin/users");
 
   return { success: true, data: undefined };
+}
+
+/** Send a polite correction request to the email address on a malformed registry entry. */
+export async function sendMatriculeReminderAction(registryId: string): Promise<ApiResponse<void>> {
+  const { user, staff } = await assertStaff();
+  if (!user || !staff) {
+    return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
+  }
+  const parsedId = z.string().uuid().safeParse(registryId);
+  if (!parsedId.success) return { success: false, error: "Fiche invalide.", code: "VALIDATION_ERROR" };
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: entry, error } = await adminClient
+    .from("student_matricule_registry")
+    .select("id, first_name, email, matricule")
+    .eq("id", parsedId.data)
+    .single();
+  if (error || !entry) return { success: false, error: "Fiche introuvable." };
+  if (STUDENT_MATRICULE_PATTERN.test(entry.matricule.trim())) {
+    return { success: false, error: "Ce matricule respecte déjà le format attendu." };
+  }
+
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT);
+  const username = process.env.SMTP_USER;
+  const password = process.env.SMTP_PASSWORD;
+  const from = process.env.SMTP_FROM || username;
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !username || !password || !from) {
+    return { success: false, error: "L'envoi d'e-mails de relance n'est pas configuré. Vérifiez les variables SMTP privées du serveur." };
+  }
+
+  const transport = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user: username, pass: password },
+  });
+  try {
+    await transport.sendMail({
+      from,
+      to: entry.email,
+      subject: "Action requise : corrigez votre matricule étudiant",
+      text: `Bonjour ${entry.first_name},\n\nLe matricule transmis (${entry.matricule}) ne respecte pas le format attendu par ESCAE-BÉNIN : ETU-AAAA-NNNN (exemple : ETU-2026-0024).\n\nMerci de vérifier votre carte ou attestation d'inscription et de soumettre à nouveau le matricule exact sur le formulaire officiel. Cette relance ne constitue pas une sanction.\n\nESCAE-BÉNIN — Innovation Hub`,
+      html: `<div style="font-family:Arial,sans-serif;color:#172018;line-height:1.6"><h2 style="color:#087d22">Correction de votre matricule étudiant</h2><p>Bonjour ${escapeHtml(entry.first_name)},</p><p>Le matricule transmis (<strong>${escapeHtml(entry.matricule)}</strong>) ne respecte pas le format attendu par ESCAE-BÉNIN : <strong>ETU-AAAA-NNNN</strong> (exemple : <strong>ETU-2026-0024</strong>).</p><p>Merci de vérifier votre carte ou attestation d'inscription et de soumettre à nouveau le matricule exact sur le formulaire officiel.</p><p style="color:#536156">Cette relance est un rappel de correction et ne constitue pas une sanction.</p><p>ESCAE-BÉNIN — Innovation Hub</p></div>`,
+    });
+  } catch {
+    console.error("[matricule] Échec d'envoi du rappel par e-mail.");
+    return { success: false, error: "L'e-mail n'a pas pu être envoyé. Vérifiez la configuration du service d'e-mail." };
+  }
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: "student.matricule_correction_reminder_sent",
+    targetId: entry.id,
+    targetType: "student_matricule_registry",
+    details: { staff_name: staff.full_name },
+  });
+  return { success: true, data: undefined };
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[char]!);
 }
 
 // ---------------------------------------------------------------------------

@@ -83,7 +83,7 @@ export function AddMatriculeModal({
 
           <div>
             <label htmlFor="modal-matricule" className={labelClass}>Matricule officiel</label>
-            <input id="modal-matricule" name="matricule" type="text" required placeholder="Ex : 24-INFO-0042" className={`${inputClass} font-mono uppercase`} />
+            <input id="modal-matricule" name="matricule" type="text" required pattern="ETU-[0-9]{4}-[0-9]{4}" maxLength={13} title="Format attendu : ETU-AAAA-NNNN (ex. ETU-2026-0024)" placeholder="Ex : ETU-2026-0024" className={`${inputClass} font-mono uppercase`} />
           </div>
 
           <div>

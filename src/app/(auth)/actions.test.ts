@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { server, admin } = vi.hoisted(() => ({
-  server: { auth: { getUser: vi.fn() }, from: vi.fn() },
+  server: { auth: { getUser: vi.fn(), signUp: vi.fn() }, from: vi.fn() },
   admin: { rpc: vi.fn(), from: vi.fn() },
 }));
 
@@ -11,7 +11,24 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { completeAdminInvitationAction } from "@/app/(auth)/actions";
+import { completeAdminInvitationAction, registerAction } from "@/app/(auth)/actions";
+
+describe("registerAction matricule rules", () => {
+  it("refuse côté serveur les matricules qui ne respectent pas ETU-AAAA-NNNN", async () => {
+    const form = new FormData();
+    form.set("fullName", "Étudiant Test");
+    form.set("email", "etudiant@example.test");
+    form.set("studentId", "56008");
+    form.set("password", "MotDePasse123");
+    form.set("confirmPassword", "MotDePasse123");
+
+    await expect(registerAction(form)).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining("ETU-AAAA-NNNN"),
+    });
+    expect(server.auth.signUp).not.toHaveBeenCalled();
+  });
+});
 
 describe("completeAdminInvitationAction", () => {
   beforeEach(() => {

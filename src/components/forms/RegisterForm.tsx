@@ -62,6 +62,9 @@ export function RegisterForm() {
           name="studentId"
           type="text"
           placeholder="Ex : ETU-2026-XXXX"
+          pattern="ETU-[0-9]{4}-[0-9]{4}"
+          title="Format attendu : ETU-AAAA-NNNN (ex. ETU-2026-0024)"
+          maxLength={13}
           required
           className={inputClass}
         />

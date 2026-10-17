@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
-import { approveMatriculeAction, rejectMatriculeAction } from "@/lib/matricule/matricule-actions";
+import { approveMatriculeAction, rejectMatriculeAction, sendMatriculeReminderAction } from "@/lib/matricule/matricule-actions";
 import type { StudentMatriculeEntry, MatriculeVerificationStatus } from "@/types";
 import { AddMatriculeModal } from "./AddMatriculeModal";
 
@@ -18,6 +18,7 @@ const STATUS_VARIANT: Record<MatriculeVerificationStatus, "default" | "info" | "
   verified: "success",
   rejected: "danger",
 };
+const OFFICIAL_MATRICULE_PATTERN = /^ETU-\d{4}-\d{4}$/i;
 
 export function MatriculeRegistryTable({
   initialEntries,
@@ -94,6 +95,17 @@ export function MatriculeRegistryTable({
       } else {
         setActionMessage({ success: false, text: res.error });
       }
+    });
+  }
+
+  function handleReminder(id: string) {
+    setActionMessage(null);
+    startTransition(async () => {
+      const res = await sendMatriculeReminderAction(id);
+      setActionMessage({
+        success: res.success,
+        text: res.success ? "E-mail de correction envoyé." : res.error,
+      });
     });
   }
 
@@ -256,6 +268,16 @@ export function MatriculeRegistryTable({
                           title="Rejeter la demande"
                         >
                           Rejeter
+                        </button>
+                      )}
+                      {!OFFICIAL_MATRICULE_PATTERN.test(entry.matricule.trim()) && (
+                        <button
+                          onClick={() => handleReminder(entry.id)}
+                          disabled={isPending}
+                          className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-xs font-semibold text-amber-300 transition hover:bg-amber-400/20 disabled:opacity-50"
+                          title={`Demander la correction du format ETU-AAAA-NNNN à ${entry.email}`}
+                        >
+                          Relancer par e-mail
                         </button>
                       )}
                     </div>
