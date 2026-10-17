@@ -17,6 +17,8 @@ const ACADEMIC_LEVELS = [
 
 export function PublicMatriculeForm() {
   const [isPending, startTransition] = useTransition();
+  const [academicLevel, setAcademicLevel] = useState("");
+  const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{
     success: boolean;
     data?: {
@@ -244,22 +246,61 @@ export function PublicMatriculeForm() {
           <label htmlFor="academicLevel" className={labelClass}>
             Niveau d&apos;études
           </label>
-          <select
-            id="academicLevel"
-            name="academicLevel"
-            disabled={isPending}
-            className={`${inputClass} bg-[#141414]`}
-            defaultValue=""
+          <input type="hidden" name="academicLevel" value={academicLevel} />
+          <div
+            className="relative min-w-0"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setIsLevelMenuOpen(false);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setIsLevelMenuOpen(false);
+            }}
           >
-            <option value="" disabled className="text-white/65">
-              Sélectionnez votre niveau
-            </option>
-            {ACADEMIC_LEVELS.map((lvl) => (
-              <option key={lvl} value={lvl} className="bg-[#141414] text-white">
-                {lvl}
-              </option>
-            ))}
-          </select>
+            <button
+              id="academicLevel"
+              type="button"
+              role="combobox"
+              aria-haspopup="listbox"
+              aria-expanded={isLevelMenuOpen}
+              aria-controls="academic-level-options"
+              disabled={isPending}
+              onClick={() => setIsLevelMenuOpen((open) => !open)}
+              className={`${inputClass} flex items-center justify-between gap-3 bg-[#141414] text-left`}
+            >
+              <span className={`truncate ${academicLevel ? "text-white" : "text-white/55"}`}>
+                {academicLevel || "Sélectionnez votre niveau"}
+              </span>
+              <svg className={`h-4 w-4 shrink-0 text-white/60 transition-transform ${isLevelMenuOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M5.22 7.47a.75.75 0 0 1 1.06 0L10 11.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {isLevelMenuOpen && (
+              <div
+                id="academic-level-options"
+                role="listbox"
+                aria-labelledby="academicLevel"
+                className="absolute left-0 right-0 top-full z-30 mt-2 max-h-52 w-full min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-white/15 bg-[#171917] p-1.5 shadow-2xl shadow-black/50"
+              >
+                {ACADEMIC_LEVELS.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    role="option"
+                    aria-selected={academicLevel === level}
+                    onClick={() => {
+                      setAcademicLevel(level);
+                      setIsLevelMenuOpen(false);
+                    }}
+                    className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm leading-snug transition ${academicLevel === level ? "bg-[#03A61C]/20 text-[#79F281]" : "text-white/85 hover:bg-white/[0.07]"}`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
