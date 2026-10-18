@@ -22,6 +22,12 @@ export const metadata: Metadata = {
     template: `%s — ${APP_CONFIG.shortName}`,
   },
   description: APP_CONFIG.description,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: APP_CONFIG.shortName,
+  },
   robots: {
     // La plateforme est privée — ne pas indexer
     index: false,
@@ -29,10 +35,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/logo-hub.png", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/logo-hub.png",
-    apple: "/logo-hub.png",
+    shortcut: "/icons/icon-192x192.png",
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
@@ -40,6 +47,7 @@ import { Suspense } from "react";
 import { AuthHashListener } from "@/components/auth/AuthHashListener";
 import { RouteProgressBar } from "@/components/layout/RouteProgressBar";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { PwaInstallBanner } from "@/components/pwa/PwaInstallBanner";
 
 export default function RootLayout({
   children,
@@ -62,6 +70,7 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
+          <PwaInstallBanner />
           <Suspense fallback={null}>
             <RouteProgressBar />
           </Suspense>
