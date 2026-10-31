@@ -1,13 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { registerAction } from "@/app/(auth)/actions";
 import { useRouter } from "next/navigation";
+import type { UniversityOption } from "@/types";
 
-export function RegisterForm() {
+interface RegisterFormProps {
+  universities: UniversityOption[];
+}
+
+interface RegistrationPrefill {
+  fullName: string;
+  email: string;
+  studentId: string;
+  universityId: string;
+}
+
+const EMPTY_PREFILL: RegistrationPrefill = {
+  fullName: "",
+  email: "",
+  studentId: "",
+  universityId: "",
+};
+
+export function RegisterForm({ universities }: RegisterFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [prefill, setPrefill] = useState(EMPTY_PREFILL);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("escae-registration-prefill");
+    if (!stored) return;
+    sessionStorage.removeItem("escae-registration-prefill");
+    try {
+      const candidate = JSON.parse(stored) as Partial<RegistrationPrefill>;
+      if (
+        typeof candidate.universityId === "string" &&
+        universities.some((university) => university.id === candidate.universityId)
+      ) {
+        setPrefill({
+          fullName: typeof candidate.fullName === "string" ? candidate.fullName : "",
+          email: typeof candidate.email === "string" ? candidate.email : "",
+          studentId: typeof candidate.studentId === "string" ? candidate.studentId : "",
+          universityId: candidate.universityId,
+        });
+      }
+    } catch {
+      // Ignore malformed browser session data and leave the form blank.
+    }
+  }, [universities]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +90,17 @@ export function RegisterForm() {
       )}
       <div>
         <label htmlFor="fullName" className={labelClass}>Nom complet</label>
-        <input id="fullName" name="fullName" type="text" required placeholder="Prénom Nom" className={inputClass} />
+        <input id="fullName" name="fullName" type="text" required placeholder="Prénom Nom" value={prefill.fullName} onChange={(event) => setPrefill((value) => ({ ...value, fullName: event.target.value }))} className={inputClass} />
+      </div>
+      <div>
+        <label htmlFor="universityId" className={labelClass}>Université</label>
+        <select id="universityId" name="universityId" required value={prefill.universityId} onChange={(event) => setPrefill((value) => ({ ...value, universityId: event.target.value }))} className={inputClass}>
+          <option value="" disabled>Sélectionnez votre université</option>
+          {universities.map((university) => (
+            <option key={university.id} value={university.id}>{university.name}</option>
+          ))}
+        </select>
+        {universities.length === 0 && <p className="mt-1 text-xs text-amber-300">La liste des universités est temporairement indisponible.</p>}
       </div>
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -66,6 +118,8 @@ export function RegisterForm() {
           title="Format attendu : ETU-AAAA-NNNN (ex. ETU-2026-0024)"
           maxLength={13}
           required
+          value={prefill.studentId}
+          onChange={(event) => setPrefill((value) => ({ ...value, studentId: event.target.value.toUpperCase() }))}
           className={inputClass}
         />
         <p className="mt-1 text-[11px] text-white/35">
@@ -74,7 +128,7 @@ export function RegisterForm() {
       </div>
       <div>
         <label htmlFor="email" className={labelClass}>Adresse e-mail</label>
-        <input id="email" name="email" type="email" required autoComplete="email" placeholder="votre@email.com" className={inputClass} />
+        <input id="email" name="email" type="email" required autoComplete="email" placeholder="votre@email.com" value={prefill.email} onChange={(event) => setPrefill((value) => ({ ...value, email: event.target.value }))} className={inputClass} />
       </div>
       <div>
         <label htmlFor="password" className={labelClass}>Mot de passe</label>
@@ -86,7 +140,7 @@ export function RegisterForm() {
       </div>
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={isLoading || universities.length === 0}
         className="mt-2 w-full rounded-lg bg-[#03A61C] py-3 text-sm font-bold text-white shadow-[0_0_20px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:shadow-[0_0_30px_rgba(5,242,40,0.5)] disabled:opacity-60"
       >
         {isLoading ? "Création en cours..." : "Créer mon compte"}

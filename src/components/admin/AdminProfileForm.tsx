@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin/appointment-actions";
 
 interface AdminProfileFormProps {
+  needsPasswordSetup?: boolean;
   profile: {
     fullName: string;
     email: string;
@@ -28,7 +29,7 @@ interface AdminProfileFormProps {
   } | null;
 }
 
-export function AdminProfileForm({ profile, appointment }: AdminProfileFormProps) {
+export function AdminProfileForm({ profile, appointment, needsPasswordSetup = false }: AdminProfileFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -37,7 +38,7 @@ export function AdminProfileForm({ profile, appointment }: AdminProfileFormProps
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const isPendingAcceptance = appointment?.status === "pending_acceptance";
+  const isPendingAcceptance = appointment?.status === "pending_acceptance" || needsPasswordSetup;
   const isActive = appointment?.status === "active";
 
   // Soumission pour activation initiale (nouveau compte invité)
@@ -214,22 +215,7 @@ export function AdminProfileForm({ profile, appointment }: AdminProfileFormProps
             </p>
           </div>
 
-          {/* Date de prise de fonction */}
-          <div>
-            <label htmlFor="start-date-confirm" className="mb-1.5 block text-xs font-medium text-white/70 uppercase tracking-wider">
-              Date officielle de prise de fonction
-            </label>
-            <input
-              id="start-date-confirm"
-              name="startDate"
-              type="date"
-              required
-              defaultValue={new Date().toISOString().split("T")[0]}
-              max={new Date().toISOString().split("T")[0]}
-              disabled={isPending}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-[#05F228]"
-            />
-          </div>
+          <p className="text-xs text-white/40">Les dates et la mission de votre mandat restent celles définies par le directeur lors de votre nomination.</p>
 
           {/* Message de retour */}
           {result && (

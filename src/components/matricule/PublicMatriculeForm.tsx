@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { submitStudentMatriculeAction } from "@/lib/matricule/matricule-actions";
 import type { MatriculeVerificationStatus } from "@/types";
+import type { UniversityOption } from "@/types";
 import { AcademicProgramFields } from "@/components/matricule/AcademicProgramFields";
 
 const ACADEMIC_LEVELS = [
@@ -15,7 +16,7 @@ const ACADEMIC_LEVELS = [
   "Doctorat / Recherche",
 ];
 
-export function PublicMatriculeForm() {
+export function PublicMatriculeForm({ universities }: { universities: UniversityOption[] }) {
   const [isPending, startTransition] = useTransition();
   const [academicLevel, setAcademicLevel] = useState("");
   const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
@@ -24,8 +25,12 @@ export function PublicMatriculeForm() {
     data?: {
       matricule: string;
       fullName: string;
+      email: string;
+      universityId: string;
       status: MatriculeVerificationStatus;
       isExistingUser: boolean;
+      isExistingRecord: boolean;
+      isSignedIn: boolean;
     };
     error?: string;
   } | null>(null);
@@ -51,7 +56,8 @@ export function PublicMatriculeForm() {
 
   // Écran de confirmation de soumission
   if (submissionResult?.success && submissionResult.data) {
-    const { matricule, fullName, status, isExistingUser } = submissionResult.data;
+    const resultData = submissionResult.data;
+    const { matricule, fullName, status, isExistingUser, isExistingRecord, isSignedIn } = resultData;
     const isMatched = isExistingUser;
     const isOfficiallyVerified = status === "verified";
 
@@ -68,7 +74,9 @@ export function PublicMatriculeForm() {
           <span className="inline-block rounded-full bg-[#05F228]/10 px-3 py-1 text-xs font-semibold text-[#05F228]">
             {isMatched
               ? "Correspondance confirmée"
-              : isOfficiallyVerified
+              : isExistingRecord
+                ? "Fiche déjà collectée"
+                : isOfficiallyVerified
                 ? "Fiche officiellement certifiée"
                 : "Fiche enregistrée"}
           </span>
@@ -76,13 +84,17 @@ export function PublicMatriculeForm() {
           <h2 className="mt-3 text-2xl font-extrabold text-white">
             {isMatched
               ? "Votre compte correspond à cette fiche"
-              : "Votre fiche a été ajoutée au registre"}
+              : isExistingRecord
+                ? "Votre fiche existante a été retrouvée"
+                : "Votre fiche a été ajoutée au registre"}
           </h2>
 
           <p className="mt-2 text-sm text-white/60 max-w-md mx-auto">
             {isMatched
               ? "Votre email confirmé, votre nom et votre matricule correspondent aux données collectées. Cette correspondance ne constitue pas une certification officielle de scolarité."
-              : isOfficiallyVerified
+              : isExistingRecord
+                ? "Aucune nouvelle fiche n’a été créée. Après confirmation de votre adresse, le HUB pourra tenter le rapprochement avec cette fiche. Une fiche en attente ne vérifie pas votre compte."
+                : isOfficiallyVerified
                 ? "Cette fiche a été marquée comme certifiée par le personnel autorisé."
                 : "Les informations sont collectées. Créez votre compte avec les mêmes nom et Gmail, puis confirmez l'adresse pour tenter le rapprochement automatique."}
           </p>
@@ -113,6 +125,10 @@ export function PublicMatriculeForm() {
             <p>
               Votre compte Innovation Hub est relié à cette fiche. Les étudiants peuvent créer et soumettre des projets même si leur compte n&apos;est pas rapproché.
             </p>
+          ) : isSignedIn ? (
+            <p>
+              Votre compte reste accessible. Si la fiche est en attente, elle devra être vérifiée par un responsable avant tout rapprochement validant le profil.
+            </p>
           ) : (
             <p>
               Créez votre compte étudiant sur <strong>ESCAE Innovation Hub</strong> avec cette même adresse Gmail et confirmez-la. Le rapprochement sera tenté automatiquement.
@@ -123,10 +139,19 @@ export function PublicMatriculeForm() {
         {/* Actions */}
         <div className="mt-6 flex flex-col sm:flex-row gap-3">
           <Link
-            href={isMatched ? "/dashboard" : "/auth/register"}
+            href={isSignedIn ? "/dashboard" : "/auth/register"}
+            onClick={() => {
+              if (isSignedIn) return;
+              sessionStorage.setItem("escae-registration-prefill", JSON.stringify({
+                fullName,
+                email: resultData.email,
+                studentId: matricule,
+                universityId: resultData.universityId,
+              }));
+            }}
             className="flex-1 text-center rounded-xl bg-[#03A61C] py-3.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_30px_rgba(5,242,40,0.6)]"
           >
-            {isMatched ? "Accéder à mon compte" : "Créer mon compte sur Innovation Hub"} &rarr;
+            {isSignedIn ? "Retourner à mon compte" : "Créer mon compte sur Innovation Hub"} &rarr;
           </Link>
           <button
             type="button"
@@ -157,6 +182,26 @@ export function PublicMatriculeForm() {
       )}
 
       {/* Ligne : Prénom et Nom */}
+      <div>
+        <label htmlFor="universityId" className={labelClass}>
+          Université <span className="text-red-400">*</span>
+        </label>
+        <select
+          id="universityId"
+          name="universityId"
+          required
+          disabled={isPending || universities.length === 0}
+          defaultValue=""
+          className={inputClass}
+        >
+          <option value="" disabled>Sélectionnez votre université</option>
+          {universities.map((university) => (
+            <option key={university.id} value={university.id}>{university.name}</option>
+          ))}
+        </select>
+        {universities.length === 0 && <p className="mt-1 text-xs text-amber-300">La liste des universités est temporairement indisponible.</p>}
+      </div>
+
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="firstName" className={labelClass}>
@@ -318,7 +363,7 @@ export function PublicMatriculeForm() {
       {/* Bouton de soumission */}
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || universities.length === 0}
         className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-[#03A61C] py-3.5 text-sm font-bold text-white shadow-[0_0_25px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_35px_rgba(5,242,40,0.6)] disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isPending ? (

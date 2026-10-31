@@ -24,9 +24,11 @@ export default async function AdminProfileCompletePage() {
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "admin") {
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  const isNewInviteSetup = user.user_metadata?.admin_setup_required === true;
+  if (!profile || (effectiveRole !== "admin" && !isNewInviteSetup)) {
     // Le directeur peut aussi accéder mais est redirigé vers sa page admin
-    if (profile?.role === "director") redirect("/admin/appointments");
+    if (effectiveRole === "director") redirect("/admin/appointments");
     redirect("/dashboard");
   }
 
@@ -120,7 +122,8 @@ export default async function AdminProfileCompletePage() {
       {/* Formulaire de profil */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-6">
         <h2 className="mb-5 font-semibold text-white">Informations personnelles</h2>
-        <AdminProfileForm
+      <AdminProfileForm
+        needsPasswordSetup={user.user_metadata?.admin_setup_required === true}
           profile={{
             fullName: profile.full_name,
             email: profile.email,

@@ -72,20 +72,15 @@ export async function GET(request: NextRequest) {
       } = await supabase.auth.getUser();
       if (user) {
         if (isAdminInvitationLink(type, next)) {
-          const admin = (await import("@/lib/supabase/server")).createSupabaseAdminClient();
-          const { data: invitationAccepted, error: invitationError } = await admin.rpc(
-            "accept_admin_invitation",
-            { p_user_id: user.id },
-          );
+          const inviteUrl = new URL(next, origin);
+          const appointmentId = inviteUrl.searchParams.get("appointmentId");
+          const invitationToken = inviteUrl.searchParams.get("token");
+          const { data: invitationAccepted, error: invitationError } = appointmentId && invitationToken
+            ? await supabase.rpc("accept_admin_invitation", { p_appointment_id: appointmentId, p_token: invitationToken })
+            : { data: false, error: new Error("Invalid invitation") };
           if (invitationError || invitationAccepted !== true) {
             await supabase.auth.signOut();
-            response.headers.set(
-              "Location",
-              new URL(
-                `/auth/login?error=${encodeURIComponent("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.")}`,
-                origin,
-              ).toString(),
-            );
+            response.headers.set("Location", new URL(`/auth/login?error=${encodeURIComponent("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.")}`, origin).toString());
             return response;
           }
         }
@@ -93,7 +88,16 @@ export async function GET(request: NextRequest) {
         // The database procedure independently checks email confirmation and performs
         // the claim atomically. Failures leave the account active but unverified.
         if (user.email_confirmed_at) {
-          await claimCollectedMatricule(user.id, user.user_metadata?.student_id ?? null);
+          const { data: studentProfile } = await supabase
+            .from("profiles")
+            .select("university_id")
+            .eq("id", user.id)
+            .single();
+          await claimCollectedMatricule(
+            user.id,
+            user.user_metadata?.university_id ?? studentProfile?.university_id,
+            user.user_metadata?.student_id ?? null,
+          );
         }
 
         const { data: profile, error: profileError } = await supabase
@@ -104,13 +108,11 @@ export async function GET(request: NextRequest) {
 
         if (!profileError && profile?.role) {
           const destination =
-            profile.role === "admin" && isAdminInvitationLink(type, next)
-              ? "/auth/confirmed?flow=admin-invitation"
-              : profile.role === "admin"
-                ? "/admin/profile/complete"
-                : profile.role === "director"
-                  ? "/admin"
-                  : "/dashboard";
+            profile.role === "admin"
+              ? user.user_metadata?.admin_setup_required ? "/admin/profile/complete" : "/admin"
+              : profile.role === "director"
+                ? "/admin"
+                : "/dashboard";
 
           // Conserver la même réponse qui a reçu les cookies Supabase, sans en perdre les options.
           response.headers.set("Location", new URL(destination, origin).toString());

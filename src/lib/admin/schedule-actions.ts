@@ -37,7 +37,8 @@ export async function schedulePresentationAction(
     .eq("id", user.id)
     .single();
 
-  if (!staff || !["admin", "director"].includes(staff.role)) {
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  if (!staff || !["admin", "director"].includes(effectiveRole ?? "")) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
   }
 

@@ -1,11 +1,17 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 /**
- * Match a confirmed account with its previously collected record.
- * `is_verified` means a confirmed email and a match with collected data;
- * it does not certify official school identity.
+ * Match a confirmed account with an explicitly verified registry record.
+ * The database RPC checks university, matricule, identity, email and single claim.
  */
-export async function claimCollectedMatricule(userId: string, matricule?: unknown) {
+export async function claimCollectedMatricule(
+  userId: string,
+  universityId: unknown,
+  matricule?: unknown,
+) {
+  if (typeof universityId !== "string" || !universityId.trim()) {
+    return { matched: false, error: null };
+  }
   const candidate =
     typeof matricule === "string" && matricule.trim().length > 0
       ? matricule.trim().toUpperCase()
@@ -15,6 +21,7 @@ export async function claimCollectedMatricule(userId: string, matricule?: unknow
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin.rpc("claim_student_matricule", {
       p_user_id: userId,
+      p_university_id: universityId,
       p_matricule: candidate,
     });
 

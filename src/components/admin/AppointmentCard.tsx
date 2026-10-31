@@ -11,12 +11,14 @@ import {
   closeAppointmentAction,
   resendAdminInvitationAction,
   revokeAppointmentAction,
+  updateAdminAppointmentAction,
 } from "@/lib/admin/appointment-actions";
 import type { AdminAppointmentWithProfiles, AppointmentStatus } from "@/types";
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
   pending_acceptance: "En attente d'acceptation",
   active: "En fonction",
+  expired: "Expiré",
   ended: "Clôturé",
   revoked: "Révoqué",
 };
@@ -24,20 +26,23 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
 const STATUS_VARIANT: Record<AppointmentStatus, "default" | "info" | "success" | "warning" | "danger" | "neutral"> = {
   pending_acceptance: "warning",
   active: "success",
+  expired: "neutral",
   ended: "neutral",
   revoked: "danger",
 };
 
 interface AppointmentCardProps {
   appointment: AdminAppointmentWithProfiles;
+  universities: { id: string; name: string; code: string }[];
   canClose: boolean;
   canRevoke: boolean;
 }
 
-export function AppointmentCard({ appointment, canClose, canRevoke }: AppointmentCardProps) {
+export function AppointmentCard({ appointment, canClose, canRevoke, universities }: AppointmentCardProps) {
   const [isPending, startTransition] = useTransition();
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -45,6 +50,17 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
   const director = Array.isArray(appointment.director)
     ? appointment.director[0]
     : appointment.director;
+  const university = universities.find((item) => item.id === appointment.university_id);
+
+  function handleEdit(formData: FormData) {
+    formData.set("appointmentId", appointment.id);
+    setError(null);
+    startTransition(async () => {
+      const response = await updateAdminAppointmentAction(formData);
+      if (!response.success) setError(response.error);
+      else setShowEditForm(false);
+    });
+  }
 
   function handleClose(formData: FormData) {
     setError(null);
@@ -112,6 +128,7 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
               </Badge>
             </div>
             <p className="text-sm text-white/50">{admin?.email ?? "—"}</p>
+            <p className="mt-1 text-xs text-sky-300">{university?.name ?? "Université inconnue"} · {appointment.access_scope === "all_universities" ? "Accès aux deux universités" : "Accès limité à cette université"}</p>
             {admin?.department && (
               <p className="mt-0.5 text-xs text-white/30">{admin.department}</p>
             )}
@@ -140,6 +157,9 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
 
         {/* Actions directeur */}
         <div className="flex flex-wrap gap-2 sm:flex-col sm:items-end">
+          {(canClose || canRevoke) && !showEditForm && !showCloseForm && !showRevokeConfirm && (
+            <button type="button" onClick={() => setShowEditForm(true)} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70">Modifier la nomination</button>
+          )}
           {canRevoke && appointment.status === "pending_acceptance" && !showCloseForm && !showRevokeConfirm && (
             <button
               id={`resend-appointment-invitation-${appointment.id}`}
@@ -173,6 +193,17 @@ export function AppointmentCard({ appointment, canClose, canRevoke }: Appointmen
           )}
         </div>
       </div>
+
+      {showEditForm && (
+        <form action={handleEdit} className="mt-5 grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-2">
+          <label className="text-xs text-white/60">Université<select name="universityId" required defaultValue={appointment.university_id} className="mt-1 w-full rounded-lg border border-white/10 bg-[#171717] px-3 py-2 text-white">{universities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="text-xs text-white/60">Périmètre<select name="accessScope" required defaultValue={appointment.access_scope} className="mt-1 w-full rounded-lg border border-white/10 bg-[#171717] px-3 py-2 text-white"><option value="own_university">Université choisie</option><option value="all_universities">Les deux universités</option></select></label>
+          <label className="text-xs text-white/60">Début<input name="startDate" type="date" required defaultValue={appointment.start_date ?? ""} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white" /></label>
+          <label className="text-xs text-white/60">Fin<input name="endDate" type="date" required defaultValue={appointment.end_date ?? ""} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white" /></label>
+          <label className="text-xs text-white/60 sm:col-span-2">Mission<textarea name="missionDescription" required minLength={2} maxLength={1000} defaultValue={appointment.mission_description ?? ""} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white" /></label>
+          <div className="flex gap-2 sm:col-span-2"><button disabled={isPending} className="rounded-lg bg-sky-500/20 px-4 py-2 text-xs font-semibold text-sky-200">{isPending ? "Enregistrement…" : "Enregistrer"}</button><button type="button" onClick={() => setShowEditForm(false)} className="rounded-lg bg-white/10 px-4 py-2 text-xs text-white/70">Annuler</button></div>
+        </form>
+      )}
 
       {/* Erreur */}
       {error && (

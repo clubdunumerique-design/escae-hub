@@ -21,6 +21,7 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
       getUser: vi.fn(),
     },
     from: vi.fn(),
+    rpc: vi.fn(),
   };
 
   const mockAdminClient = {
@@ -56,12 +57,22 @@ import {
 
 const VALID_UUID_1 = "550e8400-e29b-41d4-a716-446655440001";
 const VALID_UUID_2 = "550e8400-e29b-41d4-a716-446655440002";
+const UNIVERSITY_ID = "00000000-0000-4000-8000-000000000001";
+
+function activeUniversityQuery(universityId = UNIVERSITY_ID) {
+  const query: any = {};
+  query.select = vi.fn(() => query);
+  query.eq = vi.fn(() => query);
+  query.maybeSingle = vi.fn().mockResolvedValue({ data: { id: universityId }, error: null });
+  return query;
+}
 
 describe("Matricule Actions — Soumission et Vérification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.SUPABASE_SERVICE_ROLE_KEY = "vitest-server-only-test-key";
     mockServerClient.auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
+    mockServerClient.rpc.mockResolvedValue({ data: true, error: null });
     mockAdminClient.rpc.mockResolvedValue({ data: true, error: null });
   });
 
@@ -71,6 +82,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
   describe("submitStudentMatriculeAction", () => {
     it("doit rejeter la soumission si le honeypot anti-bot est rempli", async () => {
       const result = await submitStudentMatriculeAction({
+        universityId: UNIVERSITY_ID,
         firstName: "Jean",
         lastName: "Dupont",
         matricule: "ETU-2024-0001",
@@ -85,6 +97,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
 
     it("doit rejeter si des champs obligatoires sont manquants ou invalides", async () => {
       const result = await submitStudentMatriculeAction({
+        universityId: UNIVERSITY_ID,
         firstName: "",
         lastName: "",
         matricule: "",
@@ -98,6 +111,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
 
     it("doit refuser un matricule fantaisiste comme 56008 côté serveur", async () => {
       const result = await submitStudentMatriculeAction({
+        universityId: UNIVERSITY_ID,
         firstName: "Jean",
         lastName: "Dupont",
         matricule: "56008",
@@ -111,17 +125,25 @@ describe("Matricule Actions — Soumission et Vérification", () => {
     it("doit refuser un matricule déjà existant dans le registre", async () => {
       // Mock de la requête SELECT pour trouver un doublon
       mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "universities") return activeUniversityQuery();
         if (table === "student_matricule_registry") {
           return {
             select: vi.fn().mockReturnValue({
-              ilike: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                ilike: vi.fn().mockReturnValue({
                 maybeSingle: vi.fn().mockResolvedValue({
                   data: {
                     id: VALID_UUID_1,
                     matricule: "ETU-2024-0001",
+                    first_name: "Jean",
+                    last_name: "Dupont",
+                    full_name: "Jean Dupont",
                     verification_status: "verified",
+                    email: "jean@gmail.com",
+                    claimed_by_user_id: null,
                   },
                   error: null,
+                }),
                 }),
               }),
             }),
@@ -131,6 +153,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       });
 
       const result = await submitStudentMatriculeAction({
+        universityId: UNIVERSITY_ID,
         firstName: "Jean",
         lastName: "Dupont",
         matricule: "etu-2024-0001",
@@ -138,19 +161,135 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         fieldOfStudy: "Informatique",
       });
 
-      expect(result.success).toBe(false);
-      expect((result as any).error).toContain("déjà enregistré");
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.isExistingRecord).toBe(true);
+        expect(result.data.status).toBe("verified");
+      }
+    });
+
+    it("réutilise une fiche pending identique sans lancer de vérification ni créer un doublon", async () => {
+      const insert = vi.fn();
+      const update = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        }),
+      });
+      let completedFields: any;
+      update.mockImplementation((payload: any) => {
+        completedFields = payload;
+        return {
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          }),
+        };
+      });
+      mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "universities") return activeUniversityQuery();
+        if (table === "student_matricule_registry") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                ilike: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: {
+                      id: VALID_UUID_1,
+                      matricule: "ETU-2024-0001",
+                      first_name: "Jean",
+                      last_name: "Dupont",
+                      full_name: "Jean Dupont",
+                      verification_status: "pending",
+                      email: "jean@gmail.com",
+                      claimed_by_user_id: null,
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+            insert,
+            update,
+          };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      });
+
+      const result = await submitStudentMatriculeAction({
+        universityId: UNIVERSITY_ID,
+        firstName: "Jean",
+        lastName: "Dupont",
+        matricule: "ETU-2024-0001",
+        email: "jean@gmail.com",
+        fieldOfStudy: "Génie logiciel",
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.status).toBe("pending");
+        expect(result.data.isExistingRecord).toBe(true);
+      }
+      expect(insert).not.toHaveBeenCalled();
+      expect(completedFields.field_of_study).toBe("Génie logiciel");
+      expect(mockAdminClient.rpc).not.toHaveBeenCalledWith("claim_student_matricule", expect.anything());
+    });
+
+    it("accepte le même matricule dans une autre université sans réutiliser la fiche UAC", async () => {
+      const secondUniversityId = "00000000-0000-4000-8000-000000000002";
+      let insertedData: any;
+      let registryUniversityFilter: string | null = null;
+      mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "universities") return activeUniversityQuery(secondUniversityId);
+        if (table === "student_matricule_registry") {
+          const lookup = {
+            ilike: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          };
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn((column: string, value: string) => {
+                if (column === "university_id") registryUniversityFilter = value;
+                return lookup;
+              }),
+            }),
+            insert: vi.fn().mockImplementation((payload: any) => {
+              insertedData = payload;
+              return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: VALID_UUID_2, ...payload }, error: null }) }) };
+            }),
+          };
+        }
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      });
+
+      const result = await submitStudentMatriculeAction({
+        universityId: secondUniversityId,
+        firstName: "Jean",
+        lastName: "Dupont",
+        matricule: "ETU-2024-0001",
+        email: "jean@gmail.com",
+      });
+
+      expect(result.success).toBe(true);
+      expect(registryUniversityFilter).toBe(secondUniversityId);
+      expect(insertedData.university_id).toBe(secondUniversityId);
     });
 
     it("doit insérer avec succès une nouvelle fiche avec statut pending", async () => {
       let insertedData: any = null;
 
       mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "universities") return activeUniversityQuery();
         if (table === "student_matricule_registry") {
           return {
             select: vi.fn().mockReturnValue({
-              ilike: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                ilike: vi.fn().mockReturnValue({
                 maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
               }),
             }),
             insert: vi.fn().mockImplementation((payload: any) => {
@@ -179,6 +318,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       });
 
       const result = await submitStudentMatriculeAction({
+        universityId: UNIVERSITY_ID,
         firstName: "Awa",
         lastName: "Koffi",
         matricule: "etu-2024-0999",
@@ -193,6 +333,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(insertedData.first_name).toBe("Awa");
       expect(insertedData.last_name).toBe("Koffi");
       expect(insertedData.full_name).toBe("Awa Koffi");
+      expect(insertedData.university_id).toBe(UNIVERSITY_ID);
       expect(insertedData.verification_status).toBe("pending"); // Ne doit pas être vérifié auto !
       expect(insertedData.claimed_by_user_id).toBeNull();
       expect(mockAdminClient.from).not.toHaveBeenCalledWith("profiles");
@@ -204,11 +345,14 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         error: null,
       });
       mockAdminClient.from.mockImplementation((table: string) => {
+        if (table === "universities") return activeUniversityQuery();
         if (table === "student_matricule_registry") {
           return {
             select: vi.fn().mockReturnValue({
-              ilike: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                ilike: vi.fn().mockReturnValue({
                 maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
               }),
             }),
             insert: vi.fn().mockReturnValue({
@@ -222,6 +366,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       });
 
       const result = await submitStudentMatriculeAction({
+        universityId: UNIVERSITY_ID,
         firstName: "Awa",
         lastName: "Koffi",
         matricule: "ETU-2026-0024",
@@ -232,6 +377,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect((result as any).data.isExistingUser).toBe(true);
       expect(mockAdminClient.rpc).toHaveBeenCalledWith("claim_student_matricule", {
         p_user_id: "student-1",
+        p_university_id: UNIVERSITY_ID,
         p_matricule: "ETU-2026-0024",
       });
     });
@@ -276,6 +422,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         data: { user: { id: "admin-1", email: "admin@escae.bj" } },
         error: null,
       });
+      mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({ data: name === "effective_user_role" ? "admin" : true, error: null }));
       mockServerClient.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -289,7 +436,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
-              data: { id: VALID_UUID_1, matricule: "56008", full_name: "Test", email: "test@gmail.com", claimed_by_user_id: null },
+              data: { id: VALID_UUID_1, university_id: UNIVERSITY_ID, matricule: "56008", full_name: "Test", email: "test@gmail.com", claimed_by_user_id: null },
               error: null,
             }),
           }),
@@ -308,6 +455,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         data: { user: { id: "admin-1", email: "admin@escae.bj" } },
         error: null,
       });
+      mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({ data: name === "effective_user_role" ? "admin" : true, error: null }));
 
       mockServerClient.from.mockImplementation((table: string) => {
         if (table === "profiles") {
@@ -335,6 +483,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
                 single: vi.fn().mockResolvedValue({
                   data: {
                     id: VALID_UUID_1,
+                    university_id: UNIVERSITY_ID,
                     matricule: "ETU-2024-0555",
                     full_name: "Adama Traore",
                     email: "adama@escae.bj",
@@ -366,6 +515,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(updatedRegistryPayload.verified_by).toBe("admin-1");
       expect(mockAdminClient.rpc).toHaveBeenCalledWith("claim_student_matricule", {
         p_user_id: "user-student-789",
+        p_university_id: UNIVERSITY_ID,
         p_matricule: "ETU-2024-0555",
       });
     });
@@ -375,6 +525,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         data: { user: { id: "director-1", email: "director@escae.bj" } },
         error: null,
       });
+      mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({ data: name === "effective_user_role" ? "director" : true, error: null }));
 
       mockServerClient.from.mockImplementation((table: string) => {
         if (table === "profiles") {
@@ -402,6 +553,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
                 single: vi.fn().mockResolvedValue({
                   data: {
                     id: VALID_UUID_2,
+                    university_id: UNIVERSITY_ID,
                     matricule: "ESCAE-FAUX-001",
                     full_name: "Fraudeur",
                     email: "fraude@fake.com",
@@ -438,6 +590,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
         data: { user: { id: "admin-1", email: "admin@escae.bj" } },
         error: null,
       });
+      mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({ data: name === "effective_user_role" ? "admin" : true, error: null }));
 
       mockServerClient.from.mockImplementation((table: string) => {
         if (table === "profiles") {
@@ -479,11 +632,14 @@ describe("Matricule Actions — Soumission et Vérification", () => {
           };
         }
         if (table === "profiles") {
+          const profileQuery = {
+            eq: vi.fn(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { id: "existing-student" }, error: null }),
+          };
+          profileQuery.eq.mockReturnValue(profileQuery);
           return {
             select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: { id: "existing-student" }, error: null }),
-              }),
+              eq: vi.fn().mockReturnValue(profileQuery),
             }),
           };
         }
@@ -496,6 +652,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       });
 
       const result = await createOfficialMatriculeAction({
+        universityId: UNIVERSITY_ID,
         firstName: "Marc",
         lastName: "Hounnou",
         matricule: "ETU-2024-0002",
@@ -509,6 +666,7 @@ describe("Matricule Actions — Soumission et Vérification", () => {
       expect(insertedOfficial.verified_by).toBe("admin-1");
       expect(mockAdminClient.rpc).toHaveBeenCalledWith("claim_student_matricule", {
         p_user_id: "existing-student",
+        p_university_id: UNIVERSITY_ID,
         p_matricule: "ETU-2024-0002",
       });
     });

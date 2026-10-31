@@ -36,7 +36,7 @@ export default async function AdminAppointmentsPage() {
     .from("admin_appointments")
     .select(
       `
-      id, admin_id, appointed_by, status,
+      id, admin_id, appointed_by, status, university_id, access_scope,
       mission_description, start_date, end_date,
       invitation_sent_at, invitation_accepted_at,
       revocation_reason, created_at, updated_at,
@@ -46,11 +46,22 @@ export default async function AdminAppointmentsPage() {
     )
     .order("created_at", { ascending: false });
 
-  const active = appointments?.filter((a) => a.status === "active") ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+  const active = appointments?.filter((a) => a.status === "active" && (!a.end_date || a.end_date >= today)) ?? [];
   const pending = appointments?.filter((a) => a.status === "pending_acceptance") ?? [];
-  const history = appointments?.filter((a) =>
-    ["ended", "revoked"].includes(a.status)
-  ) ?? [];
+  const expired = appointments?.filter((a) => a.status === "active" && !!a.end_date && a.end_date < today)
+    .map((a) => ({ ...a, status: "expired" as const })) ?? [];
+  const history = [
+    ...(appointments?.filter((a) => ["ended", "revoked"].includes(a.status)) ?? []),
+    ...expired,
+  ];
+
+  const { data: universityRows } = await adminClient
+    .from("universities")
+    .select("id, name, code")
+    .eq("is_active", true)
+    .order("name");
+  const universities = universityRows ?? [];
 
   const hasActiveAdmin = active.length > 0;
   const hasPendingAdmin = pending.length > 0;
@@ -84,21 +95,6 @@ export default async function AdminAppointmentsPage() {
         </div>
       </div>
 
-      {/* Alerte si un admin est déjà en fonction */}
-      {hasActiveAdmin && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
-          <svg className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <p className="text-sm font-semibold text-amber-300">Un administrateur est déjà en fonction</p>
-            <p className="text-xs text-amber-400/70 mt-0.5">
-              Vous devez clôturer le mandat en cours avant de nommer un nouveau administrateur.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Administrateur en fonction */}
       {hasActiveAdmin && (
         <section>
@@ -110,6 +106,7 @@ export default async function AdminAppointmentsPage() {
               <AppointmentCard
                 key={appt.id}
                 appointment={appt as unknown as AdminAppointmentWithProfiles}
+                universities={universities}
                 canClose={true}
                 canRevoke={true}
               />
@@ -129,6 +126,7 @@ export default async function AdminAppointmentsPage() {
               <AppointmentCard
                 key={appt.id}
                 appointment={appt as unknown as AdminAppointmentWithProfiles}
+                universities={universities}
                 canClose={false}
                 canRevoke={true}
               />
@@ -140,20 +138,17 @@ export default async function AdminAppointmentsPage() {
       {/* Formulaire de nomination */}
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/30">
-          {hasActiveAdmin || hasPendingAdmin
-            ? "Préparer le prochain mandat"
-            : "Nommer un nouvel administrateur"}
+          "Nommer un administrateur"
         </h2>
         <div className="rounded-xl border border-white/10 bg-white/5 p-6">
           {(hasActiveAdmin || hasPendingAdmin) && (
             <div className="mb-4 rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-3">
               <p className="text-xs text-sky-400">
-                ℹ️ Vous pouvez préparer la nomination du prochain administrateur. Elle restera en attente
-                jusqu&apos;à la clôture du mandat actif.
+                ℹ️ Plusieurs administrateurs et mandats peuvent être actifs simultanément. Un même compte peut recevoir un mandat par université.
               </p>
             </div>
           )}
-          <NominateAdminForm />
+          <NominateAdminForm universities={universities} />
         </div>
       </section>
 

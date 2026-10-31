@@ -11,6 +11,8 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { claimCollectedMatricule } from "./auto-claim";
 
+const UNIVERSITY_ID = "00000000-0000-4000-8000-000000000001";
+
 describe("correspondance automatique du matricule", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -19,12 +21,13 @@ describe("correspondance automatique du matricule", () => {
   it("accepte une correspondance confirmée par la procédure de base", async () => {
     mockRpc.mockResolvedValue({ data: true, error: null });
 
-    await expect(claimCollectedMatricule("user-1", "AB-1234")).resolves.toEqual({
+    await expect(claimCollectedMatricule("user-1", UNIVERSITY_ID, "AB-1234")).resolves.toEqual({
       matched: true,
       error: null,
     });
     expect(mockRpc).toHaveBeenCalledWith("claim_student_matricule", {
       p_user_id: "user-1",
+      p_university_id: UNIVERSITY_ID,
       p_matricule: "AB-1234",
     });
   });
@@ -37,7 +40,7 @@ describe("correspondance automatique du matricule", () => {
     ["email non confirmé", "AB-1234"],
   ])("reste non vérifié si la base refuse le cas %s", async (_caseName, matricule) => {
     mockRpc.mockResolvedValue({ data: false, error: null });
-    await expect(claimCollectedMatricule("user-2", matricule)).resolves.toEqual({
+    await expect(claimCollectedMatricule("user-2", UNIVERSITY_ID, matricule)).resolves.toEqual({
       matched: false,
       error: null,
     });
@@ -45,7 +48,7 @@ describe("correspondance automatique du matricule", () => {
 
   it("échoue fermé si Supabase renvoie une erreur", async () => {
     mockRpc.mockResolvedValue({ data: null, error: new Error("database unavailable") });
-    const result = await claimCollectedMatricule("user-3", "AB-1234");
+    const result = await claimCollectedMatricule("user-3", UNIVERSITY_ID, "AB-1234");
     expect(result.matched).toBe(false);
     expect(result.error).toBeTruthy();
   });
@@ -56,8 +59,8 @@ describe("correspondance automatique du matricule", () => {
       .mockResolvedValueOnce({ data: false, error: null });
 
     const results = await Promise.all([
-      claimCollectedMatricule("user-4", "AB-1234"),
-      claimCollectedMatricule("user-5", "AB-1234"),
+      claimCollectedMatricule("user-4", UNIVERSITY_ID, "AB-1234"),
+      claimCollectedMatricule("user-5", UNIVERSITY_ID, "AB-1234"),
     ]);
     expect(results.filter((result) => result.matched)).toHaveLength(1);
   });

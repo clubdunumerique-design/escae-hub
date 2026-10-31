@@ -97,19 +97,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!profile?.role) redirect("/auth/login?error=profile_unavailable");
   const notifications = notifsRes.data;
 
-  const isAdmin = profile?.role === "admin" || profile?.role === "director";
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  const isAdmin = effectiveRole === "admin" || effectiveRole === "director";
   const isStudent = profile.role === "student";
   const roleLabels: Record<string, string> = {
     student: "Étudiant",
     admin: "Administrateur",
     director: "Directeur",
   };
-  const currentRoleLabel = roleLabels[profile.role] ?? profile.role;
+  const currentRoleLabel = roleLabels[effectiveRole ?? profile.role] ?? profile.role;
 
   // Les admin/director ne voient pas la navigation étudiant (création de projets)
   const studentNavItems = isStudent ? NAV_ITEMS : [];
   const adminNavItems = isAdmin ? ADMIN_NAV_ITEMS.filter(
-    (item) => !("directorOnly" in item && item.directorOnly) || profile.role === "director"
+    (item) => !("directorOnly" in item && item.directorOnly) || effectiveRole === "director"
   ) : [];
 
   return (

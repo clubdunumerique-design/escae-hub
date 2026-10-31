@@ -31,18 +31,20 @@ export async function loginAction(
   // Lire le rôle depuis la table profiles côté serveur
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, student_id")
+    .select("role, student_id, university_id")
     .eq("id", data.user.id)
     .single();
 
   // Re-tenter la correspondance pour les comptes confirmés, y compris les anciens comptes.
   if (data.user.email_confirmed_at && (profile?.role === "student" || !profile?.role)) {
     const candidateMatricule = data.user.user_metadata?.student_id ?? profile?.student_id;
-    await claimCollectedMatricule(data.user.id, candidateMatricule ?? null);
+    const universityId = data.user.user_metadata?.university_id ?? profile?.university_id;
+    await claimCollectedMatricule(data.user.id, universityId, candidateMatricule ?? null);
   }
 
   revalidatePath("/", "layout");
-  return { success: true, data: { id: data.user.id, role: profile?.role ?? "student" } };
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  return { success: true, data: { id: data.user.id, role: effectiveRole ?? "student" } };
 }
 
 export async function registerAction(formData: FormData): Promise<ApiResponse<{ id: string }>> {
@@ -51,11 +53,13 @@ export async function registerAction(formData: FormData): Promise<ApiResponse<{ 
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
   const studentId = (formData.get("studentId") as string) || undefined;
+  const universityId = (formData.get("universityId") as string) || undefined;
 
   const parsed = registerSchema.safeParse({
     fullName,
     email,
     studentId,
+    universityId,
     password,
     confirmPassword,
   });
@@ -68,6 +72,16 @@ export async function registerAction(formData: FormData): Promise<ApiResponse<{ 
   }
 
   const rawMatricule = parsed.data.studentId?.trim().toUpperCase() || null;
+  const admin = createSupabaseAdminClient();
+  const { data: university } = await admin
+    .from("universities")
+    .select("id")
+    .eq("id", parsed.data.universityId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!university) {
+    return { success: false, error: "Veuillez sélectionner une université active." };
+  }
   const appUrl = getPublicAppUrl();
   if (!appUrl) {
     return {
@@ -86,6 +100,7 @@ export async function registerAction(formData: FormData): Promise<ApiResponse<{ 
       data: {
         full_name: parsed.data.fullName,
         student_id: rawMatricule,
+        university_id: university.id,
       },
       emailRedirectTo: `${appUrl}/auth/callback?next=/auth/confirmed`,
     },
@@ -107,7 +122,7 @@ export async function registerAction(formData: FormData): Promise<ApiResponse<{ 
   // Les comptes avec confirmation automatique activée suivent aussi le contrôle atomique.
   // Sinon, la tentative est effectuée après confirmation dans /auth/callback.
   if (data.user.email_confirmed_at && rawMatricule) {
-    await claimCollectedMatricule(newUserId, rawMatricule);
+    await claimCollectedMatricule(newUserId, university.id, rawMatricule);
   }
 
   revalidatePath("/", "layout");
@@ -129,7 +144,13 @@ export async function completeStudentMatriculeClaimAction(): Promise<void> {
   if (!user?.email_confirmed_at) return;
 
   const candidateMatricule = user.user_metadata?.student_id;
-  await claimCollectedMatricule(user.id, candidateMatricule ?? null);
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("university_id")
+    .eq("id", user.id)
+    .single();
+  const universityId = user.user_metadata?.university_id ?? profile?.university_id;
+  await claimCollectedMatricule(user.id, universityId, candidateMatricule ?? null);
 }
 
 /** Accept a pending director-issued invitation only from its confirmed email session. */
@@ -145,35 +166,16 @@ export async function completeAdminInvitationAction(): Promise<{
   if (!user?.email_confirmed_at) {
     return { accepted: false, invitationPending: false, role: null };
   }
-
-  const admin = createSupabaseAdminClient();
-  const { data: appointment, error: appointmentError } = await admin
-    .from("admin_appointments")
-    .select("id")
-    .eq("admin_id", user.id)
-    .eq("status", "pending_acceptance")
-    .is("invitation_accepted_at", null)
-    .maybeSingle();
-  if (appointmentError) throw appointmentError;
-
-  if (!appointment) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    return { accepted: false, invitationPending: false, role: profile?.role ?? null };
-  }
-
-  const { data, error } = await admin.rpc("accept_admin_invitation", { p_user_id: user.id });
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
   return {
-    accepted: !error && data === true && profile?.role === "admin",
-    invitationPending: true,
+    // Legacy confirmation pages are read-only. Only /auth/callback can accept
+    // a nomination, after validating its appointment-bound one-time token.
+    accepted: false,
+    invitationPending: false,
     role: profile?.role ?? null,
   };
 }
@@ -201,7 +203,16 @@ export async function verifyOtpAction(formData: FormData): Promise<ApiResponse<v
     data: { user },
   } = await supabase.auth.getUser();
   if (user?.email_confirmed_at && user.user_metadata?.student_id) {
-    await claimCollectedMatricule(user.id, user.user_metadata.student_id);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("university_id")
+      .eq("id", user.id)
+      .single();
+    await claimCollectedMatricule(
+      user.id,
+      user.user_metadata.university_id ?? profile?.university_id,
+      user.user_metadata.student_id,
+    );
   }
 
   revalidatePath("/", "layout");

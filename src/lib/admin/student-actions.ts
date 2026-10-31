@@ -27,12 +27,14 @@ export async function verifyStudentAction(
   // 2. Verifier son role cote serveur
   const { data: callerProfile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, university_id")
     .eq("id", user.id)
     .single();
 
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+
   const allowedRoles = ["admin", "director"];
-  if (!callerProfile || !allowedRoles.includes(callerProfile.role)) {
+  if (!callerProfile || !allowedRoles.includes(effectiveRole ?? "")) {
     return {
       success: false,
       error: "Vous n'avez pas les permissions necessaires pour cette action.",
@@ -45,12 +47,24 @@ export async function verifyStudentAction(
   if (verified) {
     const { data: targetProfile } = await adminClient
       .from("profiles")
-      .select("student_id, role, email")
+      .select("student_id, role, email, university_id")
       .eq("id", studentId)
       .single();
 
     if (!targetProfile || targetProfile.role !== "student") {
       return { success: false, error: "Étudiant introuvable.", code: "NOT_MATCHED" };
+    }
+    if (!targetProfile.university_id) {
+      return { success: false, error: "L'université de ce profil n'est pas définie.", code: "NOT_MATCHED" };
+    }
+
+    if (effectiveRole === "admin") {
+      const { data: hasAccess } = await supabase.rpc("has_university_access", {
+        p_university_id: targetProfile.university_id,
+      });
+      if (hasAccess !== true) {
+        return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
+      }
     }
 
     let candidateMatricule = targetProfile.student_id;
@@ -58,27 +72,20 @@ export async function verifyStudentAction(
       const { data: reg } = await adminClient
         .from("student_matricule_registry")
         .select("matricule")
+        .eq("university_id", targetProfile.university_id)
         .ilike("email", targetProfile.email.trim())
-        .neq("verification_status", "rejected")
+        .eq("verification_status", "verified")
         .maybeSingle();
       candidateMatricule = reg?.matricule ?? null;
     }
 
-    // Si l'étudiant n'a pas encore cliqué sur le lien de confirmation Gmail,
-    // la validation manuelle par le personnel confirme son email pour permettre le rapprochement.
-    try {
-      const { data: authUser } = await adminClient.auth.admin.getUserById(studentId);
-      if (authUser?.user && !authUser.user.email_confirmed_at) {
-        await adminClient.auth.admin.updateUserById(studentId, {
-          email_confirm: true,
-        });
-      }
-    } catch {
-      // Ignorer si échec de l'admin auth
+    if (!candidateMatricule) {
+      return { success: false, error: "Aucune fiche explicitement vérifiée ne correspond à cet étudiant.", code: "NOT_MATCHED" };
     }
 
     const { data: matched, error: matchError } = await adminClient.rpc("claim_student_matricule", {
       p_user_id: studentId,
+      p_university_id: targetProfile.university_id,
       p_matricule: candidateMatricule,
     });
     if (matchError || matched !== true) {
@@ -88,6 +95,26 @@ export async function verifyStudentAction(
     revalidatePath("/admin/matricules");
     revalidatePath("/admin");
     return { success: true, data: undefined };
+  }
+
+  const { data: targetProfile } = await adminClient
+    .from("profiles")
+    .select("role, university_id")
+    .eq("id", studentId)
+    .single();
+  if (!targetProfile || targetProfile.role !== "student") {
+    return { success: false, error: "Étudiant introuvable.", code: "NOT_MATCHED" };
+  }
+  if (!targetProfile.university_id) {
+    return { success: false, error: "L'université de ce profil n'est pas définie.", code: "NOT_MATCHED" };
+  }
+  if (effectiveRole === "admin") {
+    const { data: hasAccess } = await supabase.rpc("has_university_access", {
+      p_university_id: targetProfile.university_id,
+    });
+    if (hasAccess !== true) {
+      return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
+    }
   }
 
   const { error } = await adminClient
@@ -130,84 +157,11 @@ export async function changeUserRoleAction(
   targetId: string,
   newRole: "admin" | "student"
 ): Promise<ApiResponse<void>> {
-  // 1. Vérifier que l'appelant est authentifié
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: "Non autorisé.", code: "UNAUTHORIZED" };
-  }
-
-  // 2. Vérifier que l'appelant est bien un directeur
-  const { data: callerProfile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!callerProfile || callerProfile.role !== "director") {
-    return {
-      success: false,
-      error: "Seul un Directeur peut modifier les rôles des utilisateurs.",
-      code: "FORBIDDEN",
-    };
-  }
-
-  // 3. Vérifier que la cible n'est pas un directeur (protection)
-  const adminClient = createSupabaseAdminClient();
-  const { data: targetProfile } = await adminClient
-    .from("profiles")
-    .select("role")
-    .eq("id", targetId)
-    .single();
-
-  if (!targetProfile) {
-    return { success: false, error: "Utilisateur introuvable." };
-  }
-
-  if (targetProfile.role === "director") {
-    return {
-      success: false,
-      error: "Impossible de modifier le rôle d'un Directeur.",
-      code: "FORBIDDEN",
-    };
-  }
-
-  // 4. Appliquer le changement de rôle via le client admin
-  const { error } = await adminClient
-    .from("profiles")
-    .update({
-      role: newRole,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", targetId);
-
-  if (error) {
-    return {
-      success: false,
-      error: "Erreur lors de la modification du rôle.",
-    };
-  }
-
-  // 5. Journal d'audit (best-effort)
-  try {
-    await adminClient.from("audit_logs").insert({
-      actor_id: user.id,
-      action: "user.role_changed",
-      target_id: targetId,
-      target_type: "profile",
-      details: {
-        previous_role: targetProfile.role,
-        new_role: newRole,
-      },
-    });
-  } catch {
-    console.error("[audit] Échec écriture log changeUserRole");
-  }
-
-  revalidatePath("/admin/users");
-  revalidatePath("/admin");
-  return { success: true, data: undefined };
+  void targetId;
+  void newRole;
+  return {
+    success: false,
+    error: "Les rôles administratifs sont attribués et retirés exclusivement par les nominations du directeur.",
+    code: "FORBIDDEN",
+  };
 }

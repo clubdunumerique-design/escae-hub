@@ -8,7 +8,9 @@
 import { useState, useTransition } from "react";
 import { nominateAdminAction } from "@/lib/admin/appointment-actions";
 
-export function NominateAdminForm() {
+type UniversityOption = { id: string; name: string; code: string };
+
+export function NominateAdminForm({ universities }: { universities: UniversityOption[] }) {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -68,15 +70,41 @@ export function NominateAdminForm() {
         </div>
       </div>
 
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label htmlFor="nominate-university" className="mb-1.5 block text-sm font-medium text-white/70">Université <span className="text-red-400">*</span></label>
+          <select id="nominate-university" name="universityId" required disabled={isPending} className="w-full rounded-lg border border-white/10 bg-[#171717] px-4 py-2.5 text-sm text-white">
+            {universities.map((university) => <option key={university.id} value={university.id}>{university.name} ({university.code})</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="nominate-scope" className="mb-1.5 block text-sm font-medium text-white/70">Périmètre d&apos;accès <span className="text-red-400">*</span></label>
+          <select id="nominate-scope" name="accessScope" required disabled={isPending} className="w-full rounded-lg border border-white/10 bg-[#171717] px-4 py-2.5 text-sm text-white">
+            <option value="own_university">Université choisie uniquement</option>
+            <option value="all_universities">Les deux universités</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="nominate-start" className="mb-1.5 block text-sm font-medium text-white/70">Début du mandat <span className="text-red-400">*</span></label>
+          <input id="nominate-start" name="startDate" type="date" required disabled={isPending} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white" />
+        </div>
+        <div>
+          <label htmlFor="nominate-end" className="mb-1.5 block text-sm font-medium text-white/70">Fin du mandat <span className="text-red-400">*</span></label>
+          <input id="nominate-end" name="endDate" type="date" required disabled={isPending} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white" />
+        </div>
+      </div>
+
       {/* Description de mission */}
       <div>
         <label htmlFor="nominate-mission" className="mb-1.5 block text-sm font-medium text-white/70">
-          Description de la mission <span className="text-white/30">(optionnel)</span>
+          Description de la mission <span className="text-red-400">*</span>
         </label>
         <textarea
           id="nominate-mission"
           name="missionDescription"
           rows={3}
+          required
+          minLength={2}
           maxLength={1000}
           placeholder="Décrivez les responsabilités et objectifs de ce mandat…"
           disabled={isPending}

@@ -18,6 +18,7 @@ export const registerSchema = z.object({
   fullName: z.string().trim().min(2, "Le nom complet doit faire au moins 2 caractères."),
   email: z.string().trim().email("Veuillez entrer une adresse e-mail valide.").toLowerCase(),
   studentId: studentMatriculeSchema,
+  universityId: z.string().uuid("Veuillez choisir une université."),
   password: z.string().min(8, "Le mot de passe doit faire au moins 8 caractères."),
   confirmPassword: z.string().min(1, "Veuillez confirmer votre mot de passe."),
 }).refine((data) => data.password === data.confirmPassword, {

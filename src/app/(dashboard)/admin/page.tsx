@@ -31,7 +31,8 @@ const STATUS_VARIANT: Record<string, "default" | "info" | "success" | "warning" 
   rejected: "danger",
 };
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ university?: string }> }) {
+  const params = await searchParams;
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
@@ -47,16 +48,28 @@ export default async function AdminPage() {
       .from("projects")
       .select(`
         id, title, status, created_at, updated_at,
-        profiles!owner_id ( full_name, email, department )
+        profiles!owner_id ( full_name, email, department, university_id )
       `)
       .order("created_at", { ascending: false }),
   ]);
 
   const profile = profileRes.data;
-  const isAdmin = profile?.role === "admin" || profile?.role === "director";
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  const isAdmin = effectiveRole === "admin" || effectiveRole === "director";
   if (!isAdmin) redirect("/dashboard");
 
-  const projects = projectsRes.data;
+  const { data: universityData } = await supabase.from("universities").select("id, name").eq("is_active", true).order("name");
+  const universityRows = universityData ?? [];
+  const accessibleUniversities: typeof universityRows = effectiveRole === "director" ? universityRows : (await Promise.all(universityRows.map(async (university) => {
+    const { data } = await supabase.rpc("has_university_access", { p_university_id: university.id });
+    return data === true ? university : null;
+  }))).filter((university): university is NonNullable<typeof university> => university !== null);
+  const selectedUniversity = params.university === "all" ? "all" : accessibleUniversities.some((u) => u.id === params.university) ? params.university : "all";
+  const projects = (projectsRes.data ?? []).filter((project) => {
+    if (selectedUniversity === "all") return true;
+    const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
+    return owner?.university_id === selectedUniversity;
+  });
 
   // Compteurs par statut
   const counts = {
@@ -73,6 +86,16 @@ export default async function AdminPage() {
         <h1 className="text-3xl font-extrabold text-white">Administration</h1>
         <p className="mt-1 text-sm text-white/40">Gérez les projets soumis par les étudiants.</p>
       </div>
+
+      <form method="get" className="mb-6 flex items-end gap-3">
+        <label className="text-sm text-white/60">Université
+          <select name="university" defaultValue={selectedUniversity} className="mt-1 block rounded-lg border border-white/10 bg-[#171717] px-3 py-2 text-white">
+            <option value="all">Toutes les universités accessibles</option>
+            {accessibleUniversities.map((university) => <option key={university.id} value={university.id}>{university.name}</option>)}
+          </select>
+        </label>
+        <button className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white">Filtrer</button>
+      </form>
 
       {/* Carte directeur : gestion des rôles */}
       {profile?.role === "director" && (

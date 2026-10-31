@@ -1,7 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import { verifyStudentAction, changeUserRoleAction } from "@/lib/admin/student-actions";
+import { verifyStudentAction } from "@/lib/admin/student-actions";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ const ROLE_VARIANT: Record<string, "default" | "info" | "success" | "warning" | 
   director: "success",
 };
 
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ university?: string }> }) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -36,15 +37,24 @@ export default async function AdminUsersPage() {
       .single(),
     supabase
       .from("profiles")
-      .select("id, email, full_name, role, is_verified, department, student_id, created_at")
+      .select("id, email, full_name, role, is_verified, department, student_id, university_id, created_at")
       .order("created_at", { ascending: false }),
   ]);
 
   const callerProfile = callerRes.data;
-  const canAccess = ["admin", "director"].includes(callerProfile?.role ?? "");
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  const canAccess = ["admin", "director"].includes(effectiveRole ?? "");
   if (!canAccess) redirect("/dashboard");
 
-  const profiles = profilesRes.data;
+  const params = await searchParams;
+  const { data: universityData } = await supabase.from("universities").select("id, name, code").eq("is_active", true).order("name");
+  const allUniversities = universityData ?? [];
+  const accessibleUniversities: typeof allUniversities = effectiveRole === "director" ? allUniversities : (await Promise.all(allUniversities.map(async (university) => {
+    const { data } = await supabase.rpc("has_university_access", { p_university_id: university.id });
+    return data === true ? university : null;
+  }))).filter((university): university is NonNullable<typeof university> => university !== null);
+  const selectedUniversity = params.university === "all" ? "all" : accessibleUniversities.some((u) => u.id === params.university) ? params.university : "all";
+  const profiles = (profilesRes.data ?? []).filter((profile) => selectedUniversity === "all" || profile.university_id === selectedUniversity);
 
   const stats = {
     total: profiles?.length ?? 0,
@@ -64,6 +74,16 @@ export default async function AdminUsersPage() {
           Consultez et vérifiez les comptes étudiants et membres du personnel.
         </p>
       </div>
+
+      <form method="get" className="mb-6 flex items-end gap-3">
+        <label className="text-sm text-white/60">Filtrer par université
+          <select name="university" defaultValue={selectedUniversity} className="mt-1 block rounded-lg border border-white/10 bg-[#171717] px-3 py-2 text-white">
+            <option value="all">Toutes les universités accessibles</option>
+            {accessibleUniversities.map((university) => <option key={university.id} value={university.id}>{university.name}</option>)}
+          </select>
+        </label>
+        <button className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white">Filtrer</button>
+      </form>
 
       {/* ── Statistiques ── */}
       <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
@@ -103,7 +123,7 @@ export default async function AdminUsersPage() {
           <h2 className="font-semibold text-white">Tous les comptes</h2>
           {callerProfile?.role === "director" && (
             <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-300">
-              Mode Directeur — gestion des rôles activée
+              Mode Directeur — nominations via les mandats
             </span>
           )}
         </div>
@@ -123,9 +143,8 @@ export default async function AdminUsersPage() {
               {profiles && profiles.length > 0 ? (
                 profiles.map((profile) => {
                   const isStudent = profile.role === "student";
-                  const isAdmin = profile.role === "admin";
                   const isDirector = profile.role === "director";
-                  const canVerify = ["admin", "director"].includes(callerProfile?.role ?? "");
+                  const canVerify = ["admin", "director"].includes(effectiveRole ?? "");
                   const isCallerDirector = callerProfile?.role === "director";
 
                   // Server Action : révoquer un rapprochement existant.
@@ -138,16 +157,6 @@ export default async function AdminUsersPage() {
                   const verifyAction = async () => {
                     "use server";
                     await verifyStudentAction(profile.id, true);
-                  };
-
-                  // Server Actions : changement de rôle (director only)
-                  const promoteToAdminAction = async () => {
-                    "use server";
-                    await changeUserRoleAction(profile.id, "admin");
-                  };
-                  const demoteToStudentAction = async () => {
-                    "use server";
-                    await changeUserRoleAction(profile.id, "student");
                   };
 
                   return (
@@ -228,31 +237,8 @@ export default async function AdminUsersPage() {
                             )
                           )}
 
-                          {/* Promotion / rétrogradation — directeur uniquement */}
-                          {isCallerDirector && !isDirector && (
-                            isAdmin ? (
-                              <form action={demoteToStudentAction}>
-                                <button
-                                  type="submit"
-                                  id={`demote-${profile.id}`}
-                                  title="Retirer le rôle Administrateur"
-                                  className="rounded-lg bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-all hover:bg-amber-500/20"
-                                >
-                                  ↓ Rétrograder
-                                </button>
-                              </form>
-                            ) : (
-                              <form action={promoteToAdminAction}>
-                                <button
-                                  type="submit"
-                                  id={`promote-${profile.id}`}
-                                  title="Nommer Administrateur"
-                                  className="rounded-lg bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 transition-all hover:bg-sky-500/20"
-                                >
-                                  ↑ Rendre Admin
-                                </button>
-                              </form>
-                            )
+                          {isCallerDirector && profile.role === "admin" && (
+                            <Link href="/admin/appointments" className="text-xs text-sky-300 hover:text-sky-200">Gérer les mandats</Link>
                           )}
 
                           {/* Aucune action disponible */}

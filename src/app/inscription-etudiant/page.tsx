@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { PublicMatriculeForm } from "@/components/matricule/PublicMatriculeForm";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { UniversityOption } from "@/types";
 
 export const metadata: Metadata = {
   title: "Enregistrement du Matricule Étudiant — ESCAE Innovation Hub",
@@ -13,7 +15,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function InscriptionEtudiantPage() {
+export const dynamic = "force-dynamic";
+
+export default async function InscriptionEtudiantPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: universities } = await supabase
+    .from("universities")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("name");
+
   return (
     <div className="relative min-h-screen bg-[#0A0A0A] text-white overflow-hidden flex flex-col justify-between">
       {/* Arrière-plan avec halos et dégradés */}
@@ -70,7 +81,7 @@ export default function InscriptionEtudiantPage() {
           </div>
 
           {/* Formulaire */}
-          <PublicMatriculeForm />
+          <PublicMatriculeForm universities={(universities ?? []) as UniversityOption[]} />
         </div>
       </main>
 

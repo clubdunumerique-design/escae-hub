@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { approveMatriculeAction, rejectMatriculeAction, sendMatriculeReminderAction } from "@/lib/matricule/matricule-actions";
-import type { StudentMatriculeEntry, MatriculeVerificationStatus } from "@/types";
+import type { StudentMatriculeEntry, MatriculeVerificationStatus, UniversityOption } from "@/types";
 import { AddMatriculeModal } from "./AddMatriculeModal";
 
 const STATUS_LABELS: Record<MatriculeVerificationStatus, string> = {
@@ -22,13 +22,16 @@ const OFFICIAL_MATRICULE_PATTERN = /^ETU-\d{4}-\d{4}$/i;
 
 export function MatriculeRegistryTable({
   initialEntries,
+  universities,
 }: {
   initialEntries: StudentMatriculeEntry[];
+  universities: UniversityOption[];
 }) {
   const router = useRouter();
   const [entries, setEntries] = useState<StudentMatriculeEntry[]>(initialEntries);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedUniversity, setSelectedUniversity] = useState<string>("all");
   const [isPending, startTransition] = useTransition();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -39,6 +42,7 @@ export function MatriculeRegistryTable({
   const filteredEntries = entries.filter((entry) => {
     const matchesStatus =
       selectedStatus === "all" || entry.verification_status === selectedStatus;
+    const matchesUniversity = selectedUniversity === "all" || entry.university_id === selectedUniversity;
     const term = searchTerm.toLowerCase().trim();
     const matchesSearch =
       !term ||
@@ -47,7 +51,7 @@ export function MatriculeRegistryTable({
       entry.email.toLowerCase().includes(term) ||
       (entry.field_of_study && entry.field_of_study.toLowerCase().includes(term));
 
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesUniversity && matchesSearch;
   });
 
   function handleApprove(id: string) {
@@ -131,6 +135,20 @@ export function MatriculeRegistryTable({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
+
+        {universities.length > 1 && (
+          <select
+            aria-label="Filtrer par université"
+            value={selectedUniversity}
+            onChange={(event) => setSelectedUniversity(event.target.value)}
+            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-500/50"
+          >
+            <option value="all">Toutes les universités</option>
+            {universities.map((university) => (
+              <option key={university.id} value={university.id}>{university.name}</option>
+            ))}
+          </select>
+        )}
 
         {/* Filtres & Ajout */}
         <div className="flex flex-wrap items-center gap-2.5">
@@ -353,6 +371,7 @@ export function MatriculeRegistryTable({
         onSuccess={() => {
           router.refresh();
         }}
+        universities={universities}
       />
     </div>
   );

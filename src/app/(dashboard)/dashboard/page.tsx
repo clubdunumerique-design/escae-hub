@@ -38,7 +38,7 @@ export default async function DashboardPage() {
   const [profileRes, projectsRes] = await Promise.all([
     supabase
       .from("profiles")
-      .select("full_name, role, is_verified, student_id")
+      .select("full_name, role, is_verified, student_id, university_id")
       .eq("id", user.id)
       .single(),
     supabase
@@ -59,11 +59,12 @@ export default async function DashboardPage() {
     user.email_confirmed_at
   ) {
     const candidateMatricule = user.user_metadata?.student_id ?? profile?.student_id;
-    const { matched } = await claimCollectedMatricule(user.id, candidateMatricule ?? null);
+    const universityId = user.user_metadata?.university_id ?? profile?.university_id;
+    const { matched } = await claimCollectedMatricule(user.id, universityId, candidateMatricule ?? null);
     if (matched) {
       const { data: refreshedProfile } = await supabase
         .from("profiles")
-        .select("full_name, role, is_verified, student_id")
+        .select("full_name, role, is_verified, student_id, university_id")
         .eq("id", user.id)
         .single();
       if (refreshedProfile) {
@@ -73,7 +74,8 @@ export default async function DashboardPage() {
   }
 
   // Rediriger les admin/director vers leur espace dédié
-  if (profile?.role === "admin" || profile?.role === "director") {
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  if (effectiveRole === "admin" || effectiveRole === "director") {
     redirect("/admin");
   }
 

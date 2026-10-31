@@ -31,6 +31,10 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
     auth: {
       getUser: vi.fn(),
     },
+    rpc: vi.fn().mockImplementation((name: string) => Promise.resolve({
+      data: name === "create_admin_appointment_invitation" ? "appt-created-001" : true,
+      error: null,
+    })),
     from: vi.fn(),
   };
 
@@ -39,6 +43,7 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
     auth: {
       admin: {
         listUsers: vi.fn(),
+        createUser: vi.fn().mockResolvedValue({ data: { user: { id: "created-admin-001" } }, error: null }),
         inviteUserByEmail: vi.fn(),
         getUserById: vi.fn(),
       },
@@ -66,6 +71,7 @@ vi.mock("@/lib/notifications/send", () => ({
 // ---------------------------------------------------------------------------
 import {
   nominateAdminAction,
+  updateAdminAppointmentAction,
   resendAdminInvitationAction,
   closeAppointmentAction,
   revokeAppointmentAction,
@@ -77,6 +83,13 @@ import {
 // ---------------------------------------------------------------------------
 
 function setupDirectorSession(directorId = "dir-001") {
+  mockAdminClient.auth.admin.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
+  mockAdminClient.auth.admin.createUser.mockResolvedValue({ data: { user: { id: "created-admin-001" } }, error: null });
+  mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
+  mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({
+    data: name === "create_admin_appointment_invitation" ? "appt-created-001" : true,
+    error: null,
+  }));
   mockServerClient.auth.getUser.mockResolvedValue({
     data: { user: { id: directorId } },
   });
@@ -93,6 +106,10 @@ function setupDirectorSession(directorId = "dir-001") {
 }
 
 function setupStudentSession(userId = "student-001") {
+  mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({
+    data: name === "effective_user_role" ? "student" : true,
+    error: null,
+  }));
   mockServerClient.auth.getUser.mockResolvedValue({
     data: { user: { id: userId } },
   });
@@ -109,6 +126,10 @@ function setupStudentSession(userId = "student-001") {
 }
 
 function setupAdminSession(adminId = "admin-001") {
+  mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({
+    data: name === "effective_user_role" ? "admin" : true,
+    error: null,
+  }));
   mockServerClient.auth.getUser.mockResolvedValue({
     data: { user: { id: adminId } },
   });
@@ -132,7 +153,14 @@ function setupNoSession() {
 
 function makeFormData(fields: Record<string, string>): FormData {
   const fd = new FormData();
-  Object.entries(fields).forEach(([k, v]) => fd.append(k, v));
+  if ("fullName" in fields || "email" in fields) {
+    fd.set("universityId", "00000000-0000-4000-8000-000000000001");
+    fd.set("accessScope", "own_university");
+    fd.set("startDate", "2026-01-01");
+    fd.set("endDate", "2026-12-31");
+    fd.set("missionDescription", "Gestion administrative du HUB");
+  }
+  Object.entries(fields).forEach(([k, v]) => fd.set(k, v));
   return fd;
 }
 
@@ -194,15 +222,17 @@ describe("nominateAdminAction", () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.appointmentId).toBe("appt-001");
+      expect(result.data.appointmentId).toBe("appt-created-001");
     }
-    expect(mockAdminClient.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
-      "jean.admin@example.com",
-      expect.objectContaining({
-        data: expect.objectContaining({ role: "admin" }),
-      })
-    );
-    expect(mockAdminClient.auth.signInWithOtp).not.toHaveBeenCalled();
+    expect(mockAdminClient.auth.admin.createUser).toHaveBeenCalledWith(expect.objectContaining({
+      email: "jean.admin@example.com",
+      email_confirm: false,
+      user_metadata: expect.objectContaining({ admin_setup_required: true }),
+    }));
+    expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith(expect.objectContaining({
+      email: "jean.admin@example.com",
+      options: expect.objectContaining({ shouldCreateUser: false }),
+    }));
   });
 
   it("envoie un lien de nomination séparé pour un compte déjà existant", async () => {
@@ -219,6 +249,9 @@ describe("nominateAdminAction", () => {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: "existing-002", role: "student", full_name: "Compte existant" }, error: null,
+              }),
               single: vi.fn().mockResolvedValue({
                 data: { id: "existing-002", role: "student", full_name: "Compte existant" },
                 error: null,
@@ -263,7 +296,7 @@ describe("nominateAdminAction", () => {
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
       email: "existing@example.com",
       options: {
-        emailRedirectTo: "http://localhost:3000/auth/callback?next=/admin/profile/complete",
+        emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"),
         shouldCreateUser: false,
       },
     });
@@ -314,7 +347,7 @@ describe("nominateAdminAction", () => {
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
       email: "existing@example.com",
       options: {
-        emailRedirectTo: "http://localhost:3000/auth/callback?next=/admin/profile/complete",
+        emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"),
         shouldCreateUser: false,
       },
     });
@@ -350,6 +383,7 @@ describe("nominateAdminAction", () => {
   // TC-05 : Invitation déjà existante — pas de doublon
   it("TC-05 : une invitation existante est gérée sans créer de doublon", async () => {
     setupDirectorSession("dir-001");
+    mockServerClient.rpc.mockResolvedValue({ data: null, error: { code: "23505", message: "duplicate appointment" } });
 
     // L'email existe déjà dans auth.users
     mockAdminClient.auth.admin.listUsers.mockResolvedValue({
@@ -359,10 +393,13 @@ describe("nominateAdminAction", () => {
       error: null,
     });
 
-    // Retourne un mandat actif pour cet utilisateur
+    // Le profil Auth existant est valide; la contrainte SQL protège contre un doublon ouvert.
     mockAdminClient.from.mockReturnValue({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { id: "existing-001", role: "student", full_name: "Jean Admin" }, error: null,
+          }),
           single: vi.fn().mockResolvedValue({
             data: { id: "existing-001", role: "student", full_name: "Jean Admin" },
             error: null,
@@ -373,7 +410,6 @@ describe("nominateAdminAction", () => {
               error: null,
             }),
           }),
-          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
         }),
       }),
       update: vi.fn().mockReturnValue({
@@ -399,10 +435,7 @@ describe("nominateAdminAction", () => {
       error: null,
     });
 
-    mockAdminClient.auth.admin.inviteUserByEmail.mockResolvedValue({
-      data: null,
-      error: { message: "SMTP connection failed" },
-    });
+    mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: { message: "SMTP connection failed" } });
 
     mockAdminClient.from.mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: null }),
@@ -413,7 +446,7 @@ describe("nominateAdminAction", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toContain("invitation");
+      expect(result.error).toContain("lien sécurisé");
     }
   });
 
@@ -423,6 +456,42 @@ describe("nominateAdminAction", () => {
     const fd = makeFormData({ fullName: "X", email: "x@x.com" });
     const result = await nominateAdminAction(fd);
     expect(result.success).toBe(false);
+  });
+});
+
+describe("updateAdminAppointmentAction", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("requires the director and updates only the mandate fields through the protected RPC", async () => {
+    setupDirectorSession("dir-001");
+    const fields = makeFormData({
+      appointmentId: "550e8400-e29b-41d4-a716-446655440001",
+      universityId: "00000000-0000-4000-8000-000000000002",
+      accessScope: "all_universities",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      missionDescription: "Supervision multi-universités",
+    });
+    await expect(updateAdminAppointmentAction(fields)).resolves.toEqual({ success: true, data: undefined });
+    expect(mockServerClient.rpc).toHaveBeenCalledWith("update_admin_appointment", expect.objectContaining({
+      p_appointment_id: "550e8400-e29b-41d4-a716-446655440001",
+      p_access_scope: "all_universities",
+    }));
+  });
+
+  it("refuses mandate edits from an administrator, even with global data access", async () => {
+    setupAdminSession("admin-001");
+    const fields = makeFormData({
+      appointmentId: "550e8400-e29b-41d4-a716-446655440001",
+      universityId: "00000000-0000-4000-8000-000000000002",
+      accessScope: "all_universities",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      missionDescription: "Mission valide",
+    });
+    const response = await updateAdminAppointmentAction(fields);
+    expect(response.success).toBe(false);
+    expect(mockServerClient.rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -478,8 +547,8 @@ describe("closeAppointmentAction", () => {
     const result = await closeAppointmentAction(fd);
 
     expect(result.success).toBe(true);
-    expect(mockAdminClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
-      p_actor_id: "dir-001", p_appointment_id: VALID_APPT_UUID,
+    expect(mockServerClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
+      p_appointment_id: VALID_APPT_UUID,
       p_final_status: "ended", p_end_date: "2026-10-15",
     }));
   });
@@ -553,8 +622,8 @@ describe("revokeAppointmentAction", () => {
     const fd = makeFormData({ appointmentId: VALID_APPT_UUID });
     const result = await revokeAppointmentAction(fd);
     expect(result.success).toBe(true);
-    expect(mockAdminClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
-      p_actor_id: "dir-001", p_appointment_id: VALID_APPT_UUID, p_final_status: "revoked",
+    expect(mockServerClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
+      p_appointment_id: VALID_APPT_UUID, p_final_status: "revoked",
     }));
   });
 
@@ -590,7 +659,7 @@ describe("revokeAppointmentAction", () => {
     const fd = makeFormData({ appointmentId: VALID_APPT_UUID });
     const result = await revokeAppointmentAction(fd);
     expect(result.success).toBe(true);
-    expect(mockAdminClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
+    expect(mockServerClient.rpc).toHaveBeenCalledWith("finish_admin_appointment", expect.objectContaining({
       p_final_status: "revoked",
     }));
   });

@@ -39,9 +39,16 @@ export interface UserProfile {
   role: UserRole;
   is_verified: boolean;       // Correspondance automatique avec une fiche collectée + email confirmé
   student_id: string | null;  // Numéro étudiant (null pour les non-étudiants)
+  university_id: string | null;
   department: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface UniversityOption {
+  id: string;
+  code: string;
+  name: string;
 }
 
 /** Résumé d'un projet (liste) */
@@ -137,6 +144,7 @@ export type ApiResponse<T> =
 export type AppointmentStatus =
   | "pending_acceptance"  // Invitation envoyée, en attente d'acceptation
   | "active"              // Administrateur en fonction
+  | "expired"             // Mandat arrivé à échéance (computed for display)
   | "ended"               // Fonction clôturée normalement
   | "revoked";            // Droits révoqués par le directeur
 
@@ -146,6 +154,8 @@ export interface AdminAppointment {
   admin_id: string;
   appointed_by: string;
   status: AppointmentStatus;
+  university_id: string;
+  access_scope: "own_university" | "all_universities";
   mission_description: string | null;
   start_date: string | null;              // Date réelle de prise de fonction
   end_date: string | null;               // Date réelle de fin de fonction
@@ -180,6 +190,7 @@ export type MatriculeVerificationStatus = "pending" | "verified" | "rejected";
 /** Fiche du registre des matricules étudiants */
 export interface StudentMatriculeEntry {
   id: string;
+  university_id: string;
   first_name: string;
   last_name: string;
   full_name: string;

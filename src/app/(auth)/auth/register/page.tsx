@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RegisterForm } from "@/components/forms/RegisterForm";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Inscription" };
 
-export default function RegisterPage() {
+export const dynamic = "force-dynamic";
+
+export default async function RegisterPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: universities } = await supabase
+    .from("universities")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("name");
+
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl">
       {/* En-tête de la carte */}
@@ -19,7 +29,7 @@ export default function RegisterPage() {
       </div>
       {/* Formulaire */}
       <div className="px-8 py-6">
-        <RegisterForm />
+        <RegisterForm universities={universities ?? []} />
         <div className="mt-6 text-center text-sm text-white/30">
           Déjà un compte ?{" "}
           <Link href="/auth/login" className="font-semibold text-[#05F228] hover:underline">

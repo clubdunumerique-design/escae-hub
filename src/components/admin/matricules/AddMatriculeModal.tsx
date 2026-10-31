@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { createOfficialMatriculeAction } from "@/lib/matricule/matricule-actions";
 import { AcademicProgramFields } from "@/components/matricule/AcademicProgramFields";
+import type { UniversityOption } from "@/types";
 
 const ACADEMIC_LEVELS = [
   "Licence 1 (L1)",
@@ -17,10 +18,12 @@ export function AddMatriculeModal({
   isOpen,
   onClose,
   onSuccess,
+  universities,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  universities: UniversityOption[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +72,14 @@ export function AddMatriculeModal({
               {error}
             </div>
           )}
+
+          <div>
+            <label htmlFor="modal-universityId" className={labelClass}>Université</label>
+            <select id="modal-universityId" name="universityId" required defaultValue="" className={`${inputClass} bg-[#181818]`}>
+              <option value="" disabled>Sélectionner</option>
+              {universities.map((university) => <option key={university.id} value={university.id}>{university.name}</option>)}
+            </select>
+          </div>
 
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

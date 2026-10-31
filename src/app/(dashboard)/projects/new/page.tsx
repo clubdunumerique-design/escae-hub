@@ -13,14 +13,9 @@ export default async function NewProjectPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
   // Bloquer admin et director côté serveur
-  if (profile?.role !== "student") redirect(profile?.role === "admin" || profile?.role === "director" ? "/admin" : "/auth/login");
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  if (effectiveRole !== "student") redirect(effectiveRole === "admin" || effectiveRole === "director" ? "/admin" : "/auth/login");
 
   return (
     <div className="mx-auto max-w-2xl">

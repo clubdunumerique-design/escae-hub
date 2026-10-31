@@ -1,9 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getMatriculeRegistryAction } from "@/lib/matricule/matricule-actions";
+import { getAccessibleUniversitiesAction, getMatriculeRegistryAction } from "@/lib/matricule/matricule-actions";
 import { MatriculeRegistryTable } from "@/components/admin/matricules/MatriculeRegistryTable";
-import type { StudentMatriculeEntry } from "@/types";
+import type { StudentMatriculeEntry, UniversityOption } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -20,20 +20,19 @@ export default async function AdminMatriculesPage() {
 
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, full_name")
-    .eq("id", user.id)
-    .single();
-
-  const canAccess = ["admin", "director"].includes(profile?.role ?? "");
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  const canAccess = ["admin", "director"].includes(effectiveRole ?? "");
   if (!canAccess) {
     redirect("/dashboard");
   }
 
   // Récupérer le registre
-  const result = await getMatriculeRegistryAction();
+  const [result, universitiesResult] = await Promise.all([
+    getMatriculeRegistryAction(),
+    getAccessibleUniversitiesAction(),
+  ]);
   const entries: StudentMatriculeEntry[] = result.success ? result.data : [];
+  const universities: UniversityOption[] = universitiesResult.success ? universitiesResult.data : [];
 
   const stats = {
     total: entries.length,
@@ -120,7 +119,7 @@ export default async function AdminMatriculesPage() {
       </div>
 
       {/* ── Table du registre ── */}
-      <MatriculeRegistryTable initialEntries={entries} />
+      <MatriculeRegistryTable initialEntries={entries} universities={universities} />
     </div>
   );
 }

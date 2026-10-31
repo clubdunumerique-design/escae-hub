@@ -1,4 +1,4 @@
-const ADMIN_PROFILE_PATH = "/admin/profile/complete";
+const ADMIN_PROFILE_PATH = "/auth/admin-invitation-accept"
 
 /**
  * Invitation links are bound to the admin-completion callback. Recovery links
@@ -9,7 +9,7 @@ export function isAdminInvitationLink(type: string | null, next: string): boolea
   // The nomination flow sets this exact local callback destination. Some PKCE
   // callbacks omit `type`, so the destination is the stable discriminator.
   return (
-    next === ADMIN_PROFILE_PATH &&
+    next.startsWith(`${ADMIN_PROFILE_PATH}?`) &&
     (type === null || type === "invite" || type === "magiclink" || type === "recovery")
   );
 }

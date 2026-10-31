@@ -66,8 +66,9 @@ export default async function AdminProjectDetailPage({
     .eq("id", user.id)
     .single();
 
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
   const staffRoles = ["admin", "director"];
-  if (!callerProfile || !staffRoles.includes(callerProfile.role)) {
+  if (!callerProfile || !staffRoles.includes(effectiveRole ?? "")) {
     redirect("/dashboard");
   }
 
@@ -171,7 +172,7 @@ export default async function AdminProjectDetailPage({
             teamMembers={teamMembers || []}
             className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white/60 transition-all hover:border-white/30 hover:text-white"
           />
-          {["admin", "director"].includes(callerProfile.role) &&
+          {["admin", "director"].includes(effectiveRole ?? "") &&
             ["under_review", "jury_evaluation", "director_validation"].includes(project.status) && (
             <Link
               href={`/admin/projects/${project.id}/evaluate`}
@@ -180,7 +181,7 @@ export default async function AdminProjectDetailPage({
               ★ Évaluer ce projet
             </Link>
           )}
-          {["director", "admin"].includes(callerProfile.role) &&
+          {["director", "admin"].includes(effectiveRole ?? "") &&
             project.status === "director_validation" && (
             <Link
               href={`/admin/projects/${project.id}/validate`}
@@ -189,7 +190,7 @@ export default async function AdminProjectDetailPage({
               ⚖ Rendre la décision
             </Link>
           )}
-          {["admin", "director"].includes(callerProfile.role) &&
+          {["admin", "director"].includes(effectiveRole ?? "") &&
             ["accepted_for_presentation", "scheduling"].includes(project.status) && (
             <Link
               href={`/admin/projects/${project.id}/schedule`}
@@ -543,7 +544,7 @@ export default async function AdminProjectDetailPage({
                     );
                   })}
                 </div>
-                {["admin", "director"].includes(callerProfile.role) && (
+                {["admin", "director"].includes(effectiveRole ?? "") && (
                   <Link
                     href={`/admin/projects/${project.id}/evaluate`}
                     className="mt-4 block rounded-lg border border-[#03A61C]/40 px-4 py-2 text-center text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/20"
@@ -559,7 +560,7 @@ export default async function AdminProjectDetailPage({
           <AdminActionPanel
             projectId={project.id}
             currentStatus={project.status as ProjectStatus}
-            userRole={callerProfile.role}
+            userRole={effectiveRole ?? "student"}
           />
         </div>
       </div>

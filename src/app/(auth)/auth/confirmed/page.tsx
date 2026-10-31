@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import {
-  completeAdminInvitationAction,
-  completeStudentMatriculeClaimAction,
-} from "@/app/(auth)/actions";
+import { completeStudentMatriculeClaimAction } from "@/app/(auth)/actions";
 
 export default function ConfirmedPage() {
   const router = useRouter();
@@ -14,28 +11,20 @@ export default function ConfirmedPage() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isAdminInvitationFlow, setIsAdminInvitationFlow] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
     let isFinishingUser = false;
     const supabase = createSupabaseBrowserClient();
-    const adminInvitationFlow =
-      new URLSearchParams(window.location.search).get("flow") === "admin-invitation";
-    setIsAdminInvitationFlow(adminInvitationFlow);
-
     async function loadRole(userId: string): Promise<string | null> {
       try {
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", userId)
-          .single();
+        void userId;
+        const { data: role, error } = await supabase.rpc("effective_user_role");
         if (error) return null;
-        if (profile?.role && isMounted) {
-          setUserRole(profile.role);
+        if (role && isMounted) {
+          setUserRole(role);
         }
-        return profile?.role ?? null;
+        return role ?? null;
       } catch {
         return null;
       }
@@ -51,34 +40,8 @@ export default function ConfirmedPage() {
           if (isFinishingUser) return;
           isFinishingUser = true;
           await completeStudentMatriculeClaimAction();
-          // The server callback has already accepted this invitation atomically.
-          // Keep the old hash-link path working for invitations issued before it.
-          const invitationToken = window.location.hash.includes("access_token");
-          const shouldCheckInvitation = !adminInvitationFlow && invitationToken;
-          const invitation = shouldCheckInvitation ? await completeAdminInvitationAction() : null;
-          if (invitation?.invitationPending && !invitation.accepted) {
-            setErrorMessage(
-              "Votre lien a confirmé l’adresse, mais le rôle administrateur n’a pas pu être activé. Demandez au directeur de renvoyer l’invitation.",
-            );
-            setStatus("error");
-            return;
-          }
           setUserEmail(user.email ?? null);
-          const role = invitation?.accepted ? invitation.role : await loadRole(user.id);
-          if (adminInvitationFlow && role !== "admin") {
-            setErrorMessage(
-              "Votre adresse a été confirmée, mais votre accès administrateur n’a pas pu être activé. Contactez le directeur.",
-            );
-            setStatus("error");
-            return;
-          }
-          if (invitation?.invitationPending && role !== "admin") {
-            setErrorMessage(
-              "La nomination est encore en attente. Contactez le directeur pour vérifier votre invitation.",
-            );
-            setStatus("error");
-            return;
-          }
+          await loadRole(user.id);
           setStatus("success");
         };
         // 1. Vérifier si un hash d'erreur est présent
@@ -204,15 +167,9 @@ export default function ConfirmedPage() {
             <span className="inline-block rounded-full bg-[#05F228]/10 px-3 py-1 text-xs font-semibold text-[#05F228]">
               Confirmation réussie
             </span>
-            <h1 className="mt-3 text-2xl font-extrabold text-white">
-              {isAdminInvitationFlow
-                ? "Votre nomination est confirmée !"
-                : "Votre compte est confirmé !"}
-            </h1>
+            <h1 className="mt-3 text-2xl font-extrabold text-white">Votre compte est confirmé !</h1>
             <p className="mt-2 text-sm text-white/60">
-              {isAdminInvitationFlow
-                ? "Votre adresse email est vérifiée et votre accès administrateur est activé. Vous pouvez accéder à votre espace."
-                : "Votre adresse email a été validée avec succès. Votre compte est maintenant activé."}
+              Votre adresse email a été validée avec succès. Votre compte est maintenant activé.
             </p>
           </div>
         )}
@@ -257,7 +214,7 @@ export default function ConfirmedPage() {
             <button
               onClick={() => {
                 if (userRole === "admin") {
-                  router.push(isAdminInvitationFlow ? "/admin" : "/admin/profile/complete");
+                  router.push("/admin");
                 } else if (userRole === "director") {
                   router.push("/admin");
                 } else {

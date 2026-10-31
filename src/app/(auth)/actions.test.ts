@@ -28,6 +28,39 @@ describe("registerAction matricule rules", () => {
     });
     expect(server.auth.signUp).not.toHaveBeenCalled();
   });
+
+  it("transmet au serveur le choix d'université avec le matricule", async () => {
+    const universityId = "00000000-0000-4000-8000-000000000002";
+    const query: any = {};
+    query.select = vi.fn(() => query);
+    query.eq = vi.fn(() => query);
+    query.maybeSingle = vi.fn().mockResolvedValue({ data: { id: universityId }, error: null });
+    admin.from.mockReturnValue(query);
+    server.auth.signUp.mockResolvedValue({
+      data: { user: { id: "student-2", email_confirmed_at: null } },
+      error: null,
+    });
+
+    const form = new FormData();
+    form.set("fullName", "Étudiant Porto Novo");
+    form.set("email", "etudiant@example.test");
+    form.set("studentId", "ETU-2026-0024");
+    form.set("universityId", universityId);
+    form.set("password", "MotDePasse123");
+    form.set("confirmPassword", "MotDePasse123");
+
+    await expect(registerAction(form)).resolves.toMatchObject({ success: true });
+    expect(server.auth.signUp).toHaveBeenCalledWith(expect.objectContaining({
+      email: "etudiant@example.test",
+      password: "MotDePasse123",
+      options: expect.objectContaining({
+        data: expect.objectContaining({
+          student_id: "ETU-2026-0024",
+          university_id: universityId,
+        }),
+      }),
+    }));
+  });
 });
 
 describe("completeAdminInvitationAction", () => {
@@ -62,21 +95,20 @@ describe("completeAdminInvitationAction", () => {
     });
   });
 
-  it("reports acceptance only when the server RPC accepts the confirmed account", async () => {
-    admin.rpc.mockResolvedValue({ data: true, error: null });
+  it("does not accept legacy confirmation without an appointment-bound token", async () => {
     await expect(completeAdminInvitationAction()).resolves.toEqual({
-      accepted: true,
-      invitationPending: true,
+      accepted: false,
+      invitationPending: false,
       role: "admin",
     });
-    expect(admin.rpc).toHaveBeenCalledWith("accept_admin_invitation", { p_user_id: "invitee-1" });
+    expect(admin.rpc).not.toHaveBeenCalled();
   });
 
   it("does not claim acceptance for expired, replayed, or missing invitations", async () => {
     admin.rpc.mockResolvedValue({ data: false, error: null });
     await expect(completeAdminInvitationAction()).resolves.toEqual({
       accepted: false,
-      invitationPending: true,
+      invitationPending: false,
       role: "admin",
     });
   });

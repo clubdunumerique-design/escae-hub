@@ -9,6 +9,7 @@ import type { AdminAppointmentWithProfiles, AppointmentStatus } from "@/types";
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
   pending_acceptance: "En attente",
   active: "En fonction",
+  expired: "Expiré",
   ended: "Clôturé",
   revoked: "Révoqué",
 };
@@ -19,6 +20,7 @@ const STATUS_VARIANT: Record<
 > = {
   pending_acceptance: "warning",
   active: "success",
+  expired: "neutral",
   ended: "neutral",
   revoked: "danger",
 };

@@ -29,7 +29,8 @@ export default async function ValidateProjectPage({
     .eq("id", user.id)
     .single();
 
-  if (!director || !["director", "admin"].includes(director.role)) {
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  if (!director || !["director", "admin"].includes(effectiveRole ?? "")) {
     redirect("/dashboard");
   }
 

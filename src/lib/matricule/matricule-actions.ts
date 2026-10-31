@@ -33,6 +33,7 @@ const publicMatriculeSubmissionSchema = z.object({
     .min(2, "Le nom doit comporter au moins 2 caractères.")
     .max(60, "Le nom est trop long.")
     .trim(),
+  universityId: z.string().uuid("Veuillez choisir une université."),
   matricule: z.string().trim().regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024)."),
   email: z.string().email("Adresse email invalide.").trim().toLowerCase()
     .refine((value) => value.endsWith("@gmail.com"), "Veuillez utiliser une adresse Gmail."),
@@ -47,6 +48,7 @@ const reviewMatriculeSchema = z.object({
 });
 
 const manualAddMatriculeSchema = z.object({
+  universityId: z.string().uuid("Veuillez choisir une université."),
   firstName: z.string().min(2).max(60).trim(),
   lastName: z.string().min(2).max(60).trim(),
   matricule: z.string().trim().regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024)."),
@@ -66,19 +68,37 @@ async function assertStaff() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { user: null, staff: null };
+  if (!user) return { user: null, staff: null, supabase };
 
   const { data: staff } = await supabase
     .from("profiles")
-    .select("id, role, full_name")
+    .select("id, role, full_name, university_id")
     .eq("id", user.id)
     .single();
 
-  if (!staff || !["admin", "director"].includes(staff.role)) {
-    return { user, staff: null };
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  if (!staff || !["admin", "director"].includes(effectiveRole ?? "")) {
+    return { user, staff: null, supabase };
   }
 
-  return { user, staff };
+  return { user, staff: { ...staff, role: effectiveRole as string }, supabase };
+}
+
+async function staffCanAccessUniversity(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  staff: { role: string },
+  universityId: string,
+) {
+  if (staff.role === "director") return true;
+  const { data, error } = await supabase.rpc("has_university_access", {
+    p_university_id: universityId,
+  });
+  return !error && data === true;
+}
+
+function sameIdentity(left: string, right: string) {
+  const normalize = (value: string) => value.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  return normalize(left) === normalize(right);
 }
 
 async function writeAuditLog({
@@ -128,13 +148,18 @@ export async function submitStudentMatriculeAction(
   ApiResponse<{
     matricule: string;
     fullName: string;
+    email: string;
+    universityId: string;
     status: MatriculeVerificationStatus;
     isExistingUser: boolean;
+    isExistingRecord: boolean;
+    isSignedIn: boolean;
   }>
 > {
   const parsed = publicMatriculeSubmissionSchema.safeParse({
     firstName: extractField(formData, "firstName", "first_name"),
     lastName: extractField(formData, "lastName", "last_name"),
+    universityId: extractField(formData, "universityId", "university_id"),
     matricule: extractField(formData, "matricule"),
     email: extractField(formData, "email"),
     fieldOfStudy: extractField(formData, "fieldOfStudy", "filiere") || undefined,
@@ -150,7 +175,7 @@ export async function submitStudentMatriculeAction(
     };
   }
 
-  const { firstName, lastName, email, fieldOfStudy, academicLevel } = parsed.data;
+  const { firstName, lastName, email, universityId, fieldOfStudy, academicLevel } = parsed.data;
   const normalizedMatricule = parsed.data.matricule.toUpperCase().trim();
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
@@ -181,54 +206,99 @@ export async function submitStudentMatriculeAction(
     };
   }
 
-  // 1. Vérifier si ce matricule existe déjà dans le registre
-  const { data: existingEntry } = await adminClient
+  const { data: activeUniversity } = await adminClient
+    .from("universities")
+    .select("id")
+    .eq("id", universityId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!activeUniversity || activeUniversity.id !== universityId) {
+    return { success: false, error: "Veuillez choisir une université active.", code: "VALIDATION_ERROR" };
+  }
+
+  // 1. Matricules are unique only inside their selected university.
+  const { data: existingEntry, error: lookupError } = await adminClient
     .from("student_matricule_registry")
-    .select("id, matricule, verification_status, email, claimed_by_user_id")
+    .select("id, matricule, first_name, last_name, full_name, field_of_study, academic_level, verification_status, email, claimed_by_user_id")
+    .eq("university_id", universityId)
     .ilike("matricule", normalizedMatricule.replace(/[\\%_]/g, "\\$&"))
     .maybeSingle();
+  if (lookupError) {
+    return { success: false, error: "Erreur lors de la recherche de votre fiche." };
+  }
 
   if (existingEntry) {
-    if (signedInUser) {
-      const { matched } = await claimCollectedMatricule(signedInUser.id, normalizedMatricule);
-      if (matched) {
-        return {
-          success: true,
-          data: {
-            matricule: normalizedMatricule,
-            fullName,
-            status: existingEntry.verification_status,
-            isExistingUser: true,
-          },
-        };
+    const matchesSubmittedIdentity =
+      sameIdentity(existingEntry.full_name, fullName) &&
+      sameIdentity(existingEntry.email, email);
+
+    if (existingEntry.verification_status !== "rejected") {
+      if (!matchesSubmittedIdentity) {
+        return { success: false, error: "Ce matricule est déjà enregistré dans cette université. Vérifiez vos informations ou contactez la scolarité.", code: "DUPLICATE_MATRICULE" };
       }
-    }
 
-    if (existingEntry.verification_status === "verified") {
-      return {
-        success: false,
-        error: "Ce matricule est déjà enregistré et vérifié dans le registre officiel de l'ESCAE.",
-        code: "ALREADY_VERIFIED",
-      };
-    }
+      let matchedExistingUser = false;
+      if (existingEntry.verification_status === "verified" && signedInUser?.email_confirmed_at) {
+        const { matched } = await claimCollectedMatricule(signedInUser.id, universityId, normalizedMatricule);
+        matchedExistingUser = matched;
+      }
 
-    if (existingEntry.verification_status === "pending") {
+      if (existingEntry.verification_status === "pending") {
+        const completedFields = {
+          field_of_study: existingEntry.field_of_study ?? fieldOfStudy ?? null,
+          academic_level: existingEntry.academic_level ?? academicLevel ?? null,
+        };
+        if (
+          completedFields.field_of_study !== (existingEntry.field_of_study ?? null) ||
+          completedFields.academic_level !== (existingEntry.academic_level ?? null)
+        ) {
+          const { error: completionError } = await adminClient
+            .from("student_matricule_registry")
+            .update({ ...completedFields, updated_at: new Date().toISOString() })
+            .eq("id", existingEntry.id)
+            .eq("university_id", universityId)
+            .eq("verification_status", "pending");
+          if (completionError) {
+            return { success: false, error: "La fiche existe, mais les informations complémentaires n'ont pas pu être enregistrées." };
+          }
+          await writeAuditLog({
+            actorId: signedInUser?.id ?? null,
+            action: "student.matricule_details_completed",
+            targetId: existingEntry.id,
+            targetType: "student_matricule_registry",
+            details: { university_id: universityId },
+          });
+        }
+      }
+
+      await writeAuditLog({
+        actorId: signedInUser?.id ?? null,
+        action: "student.matricule_existing_record_reused",
+        targetId: existingEntry.id,
+        targetType: "student_matricule_registry",
+        details: { university_id: universityId, status: existingEntry.verification_status },
+      });
+
       return {
-        success: false,
-        error: "Ce matricule est déjà collecté. Utilisez les mêmes nom et Gmail lors de la création du compte, puis confirmez l'adresse pour tenter le rapprochement automatique.",
-        code: "ALREADY_PENDING",
+        success: true,
+        data: {
+          matricule: normalizedMatricule,
+          fullName: existingEntry.full_name,
+          email: existingEntry.email,
+          universityId,
+          status: existingEntry.verification_status,
+          isExistingUser: matchedExistingUser,
+          isExistingRecord: true,
+          isSignedIn: Boolean(signedInUser),
+        },
       };
     }
 
     if (existingEntry.claimed_by_user_id) {
-      return {
-        success: false,
-        error: "Ce matricule est déjà associé à un compte et ne peut pas être remplacé.",
-        code: "ALREADY_CLAIMED",
-      };
+      return { success: false, error: "Cette fiche a déjà été associée à un compte et ne peut pas être remplacée.", code: "ALREADY_CLAIMED" };
     }
 
-    // Si rejeté précédemment, on autorise la mise à jour de la demande
+    // Reuse a rejected row instead of creating another; the new submission returns it to pending.
     const { error: updateError } = await adminClient
       .from("student_matricule_registry")
       .update({
@@ -240,22 +310,35 @@ export async function submitStudentMatriculeAction(
         academic_level: academicLevel ?? null,
         verification_status: "pending",
         rejection_reason: null,
+        verified_by: null,
+        verified_at: null,
         submitted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", existingEntry.id);
+      .eq("id", existingEntry.id)
+      .eq("university_id", universityId);
 
-    if (updateError) {
-      return { success: false, error: "Erreur lors de la mise à jour de la demande." };
-    }
+    if (updateError) return { success: false, error: "Erreur lors de la mise à jour de la demande." };
+
+    await writeAuditLog({
+      actorId: signedInUser?.id ?? null,
+      action: "student.matricule_resubmitted",
+      targetId: existingEntry.id,
+      targetType: "student_matricule_registry",
+      details: { university_id: universityId },
+    });
 
     return {
       success: true,
       data: {
         matricule: normalizedMatricule,
         fullName,
+        email,
+        universityId,
         status: "pending",
         isExistingUser: false,
+        isExistingRecord: true,
+        isSignedIn: Boolean(signedInUser),
       },
     };
   }
@@ -267,6 +350,7 @@ export async function submitStudentMatriculeAction(
       first_name: firstName,
       last_name: lastName,
       full_name: fullName,
+      university_id: universityId,
       matricule: normalizedMatricule,
       email,
       field_of_study: fieldOfStudy ?? null,
@@ -279,7 +363,7 @@ export async function submitStudentMatriculeAction(
     .single();
 
   if (insertError || !newEntry) {
-    if (insertError?.message?.includes("idx_student_registry_matricule_unique")) {
+    if (insertError?.code === "23505" || insertError?.message?.includes("idx_student_registry_university_matricule_unique")) {
       return {
         success: false,
         error: "Une fiche avec ce matricule a déjà été enregistrée.",
@@ -307,7 +391,7 @@ export async function submitStudentMatriculeAction(
   // student role, ownership, and confirmation atomically.
   let matchedSignedInUser = false;
   if (signedInUser?.email_confirmed_at) {
-    const { matched } = await claimCollectedMatricule(signedInUser.id, normalizedMatricule);
+    const { matched } = await claimCollectedMatricule(signedInUser.id, universityId, normalizedMatricule);
     matchedSignedInUser = matched;
   }
 
@@ -318,8 +402,12 @@ export async function submitStudentMatriculeAction(
     data: {
       matricule: normalizedMatricule,
       fullName,
+      email,
+      universityId,
       status: "pending",
       isExistingUser: matchedSignedInUser,
+      isExistingRecord: false,
+      isSignedIn: Boolean(signedInUser),
     },
   };
 }
@@ -332,24 +420,46 @@ export async function getMatriculeRegistryAction(options?: {
   status?: string;
   search?: string;
   limit?: number;
+  universityId?: string;
 }): Promise<ApiResponse<StudentMatriculeEntry[]>> {
-  const { user, staff } = await assertStaff();
+  const { user, staff, supabase } = await assertStaff();
 
   if (!user || !staff) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
   }
 
   const adminClient = createSupabaseAdminClient();
+  const { data: universities } = await supabase
+    .from("universities")
+    .select("id")
+    .eq("is_active", true);
+  const accessibleUniversityIds: string[] = [];
+  for (const university of universities ?? []) {
+    if (await staffCanAccessUniversity(supabase, staff, university.id)) {
+      accessibleUniversityIds.push(university.id);
+    }
+  }
+  if (options?.universityId && !accessibleUniversityIds.includes(options.universityId)) {
+    return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
+  }
+  const targetUniversityIds = options?.universityId
+    ? [options.universityId]
+    : accessibleUniversityIds;
+  if (targetUniversityIds.length === 0) {
+    return { success: true, data: [] };
+  }
+
   let query = adminClient
     .from("student_matricule_registry")
     .select(`
-      id, first_name, last_name, full_name, matricule, email,
+      id, university_id, first_name, last_name, full_name, matricule, email,
       field_of_study, academic_level, verification_status, rejection_reason,
       claimed_by_user_id, claimed_at, verified_by, verified_at,
       submitted_at, created_at, updated_at,
       verifier:profiles!student_matricule_registry_verified_by_fkey(id, full_name),
       claimed_profile:profiles!student_matricule_registry_claimed_by_user_id_fkey(id, full_name, email)
     `)
+    .in("university_id", targetUniversityIds)
     .order("submitted_at", { ascending: false });
 
   if (options?.status && ["pending", "verified", "rejected"].includes(options.status)) {
@@ -374,6 +484,25 @@ export async function getMatriculeRegistryAction(options?: {
   return { success: true, data: (data as unknown as StudentMatriculeEntry[]) ?? [] };
 }
 
+export async function getAccessibleUniversitiesAction(): Promise<ApiResponse<Array<{ id: string; code: string; name: string }>>> {
+  const { user, staff, supabase } = await assertStaff();
+  if (!user || !staff) {
+    return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
+  }
+  const { data: universities, error } = await supabase
+    .from("universities")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("name");
+  if (error) return { success: false, error: "Impossible de charger les universités." };
+
+  const accessible = [];
+  for (const university of universities ?? []) {
+    if (await staffCanAccessUniversity(supabase, staff, university.id)) accessible.push(university);
+  }
+  return { success: true, data: accessible };
+}
+
 // ---------------------------------------------------------------------------
 // Action 3 : Valider officiellement un matricule (Staff)
 // ---------------------------------------------------------------------------
@@ -381,7 +510,7 @@ export async function getMatriculeRegistryAction(options?: {
 export async function approveMatriculeAction(
   registryId: string
 ): Promise<ApiResponse<void>> {
-  const { user, staff } = await assertStaff();
+  const { user, staff, supabase } = await assertStaff();
 
   if (!user || !staff) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
@@ -397,12 +526,15 @@ export async function approveMatriculeAction(
   // Charger la fiche
   const { data: entry } = await adminClient
     .from("student_matricule_registry")
-    .select("id, matricule, full_name, email, claimed_by_user_id")
+    .select("id, university_id, matricule, full_name, email, claimed_by_user_id")
     .eq("id", registryId)
     .single();
 
   if (!entry) {
     return { success: false, error: "Fiche de matricule introuvable." };
+  }
+  if (!(await staffCanAccessUniversity(supabase, staff, entry.university_id))) {
+    return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
   }
   if (!STUDENT_MATRICULE_PATTERN.test(entry.matricule.trim())) {
     return {
@@ -438,6 +570,7 @@ export async function approveMatriculeAction(
     const { data: matchedProfile } = await adminClient
       .from("profiles")
       .select("id")
+      .eq("university_id", entry.university_id)
       .ilike("email", entry.email.trim())
       .maybeSingle();
     targetStudentId = matchedProfile?.id ?? null;
@@ -446,6 +579,7 @@ export async function approveMatriculeAction(
   if (targetStudentId) {
     const { data: matched, error: claimError } = await adminClient.rpc("claim_student_matricule", {
       p_user_id: targetStudentId,
+      p_university_id: entry.university_id,
       p_matricule: entry.matricule,
     });
     if (claimError) {
@@ -490,7 +624,7 @@ export async function rejectMatriculeAction(
   registryId: string,
   reason: string
 ): Promise<ApiResponse<void>> {
-  const { user, staff } = await assertStaff();
+  const { user, staff, supabase } = await assertStaff();
 
   if (!user || !staff) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
@@ -505,12 +639,15 @@ export async function rejectMatriculeAction(
 
   const { data: entry } = await adminClient
     .from("student_matricule_registry")
-    .select("id, matricule, full_name, claimed_by_user_id")
+    .select("id, university_id, matricule, full_name, claimed_by_user_id")
     .eq("id", registryId)
     .single();
 
   if (!entry) {
     return { success: false, error: "Fiche introuvable." };
+  }
+  if (!(await staffCanAccessUniversity(supabase, staff, entry.university_id))) {
+    return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
   }
 
   const now = new Date().toISOString();
@@ -572,7 +709,7 @@ export async function rejectMatriculeAction(
 
 /** Send a polite correction request to the email address on a malformed registry entry. */
 export async function sendMatriculeReminderAction(registryId: string): Promise<ApiResponse<void>> {
-  const { user, staff } = await assertStaff();
+  const { user, staff, supabase } = await assertStaff();
   if (!user || !staff) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
   }
@@ -582,10 +719,13 @@ export async function sendMatriculeReminderAction(registryId: string): Promise<A
   const adminClient = createSupabaseAdminClient();
   const { data: entry, error } = await adminClient
     .from("student_matricule_registry")
-    .select("id, first_name, email, matricule")
+    .select("id, university_id, first_name, email, matricule")
     .eq("id", parsedId.data)
     .single();
   if (error || !entry) return { success: false, error: "Fiche introuvable." };
+  if (!(await staffCanAccessUniversity(supabase, staff, entry.university_id))) {
+    return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
+  }
   if (STUDENT_MATRICULE_PATTERN.test(entry.matricule.trim())) {
     return { success: false, error: "Ce matricule respecte déjà le format attendu." };
   }
@@ -641,7 +781,7 @@ function escapeHtml(value: string): string {
 export async function createOfficialMatriculeAction(
   formData: FormData | Record<string, unknown>
 ): Promise<ApiResponse<{ id: string }>> {
-  const { user, staff } = await assertStaff();
+  const { user, staff, supabase } = await assertStaff();
 
   if (!user || !staff) {
     return { success: false, error: "Permissions insuffisantes.", code: "FORBIDDEN" };
@@ -651,6 +791,7 @@ export async function createOfficialMatriculeAction(
   const isPreVerified = (formData as any)?.is_pre_verified;
 
   const parsed = manualAddMatriculeSchema.safeParse({
+    universityId: extractField(formData, "universityId", "university_id"),
     firstName: extractField(formData, "firstName", "first_name"),
     lastName: extractField(formData, "lastName", "last_name"),
     matricule: extractField(formData, "matricule"),
@@ -664,12 +805,16 @@ export async function createOfficialMatriculeAction(
     return { success: false, error: parsed.error.errors[0].message, code: "VALIDATION_ERROR" };
   }
 
-  const { firstName, lastName, email, fieldOfStudy, academicLevel, verificationStatus } = parsed.data;
+  const { universityId, firstName, lastName, email, fieldOfStudy, academicLevel, verificationStatus } = parsed.data;
   const normalizedMatricule = parsed.data.matricule.toUpperCase().trim();
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
   const adminClient = createSupabaseAdminClient();
   const now = new Date().toISOString();
+
+  if (!(await staffCanAccessUniversity(supabase, staff, universityId))) {
+    return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
+  }
 
   const { data: entry, error } = await adminClient
     .from("student_matricule_registry")
@@ -677,6 +822,7 @@ export async function createOfficialMatriculeAction(
       first_name: firstName,
       last_name: lastName,
       full_name: fullName,
+      university_id: universityId,
       matricule: normalizedMatricule,
       email,
       field_of_study: fieldOfStudy ?? null,
@@ -689,7 +835,7 @@ export async function createOfficialMatriculeAction(
     .single();
 
   if (error || !entry) {
-    if (error?.message?.includes("idx_student_registry_matricule_unique")) {
+    if (error?.code === "23505" || error?.message?.includes("idx_student_registry_university_matricule_unique")) {
       return { success: false, error: "Ce matricule existe déjà dans le registre." };
     }
     return { success: false, error: "Erreur lors de l'enregistrement." };
@@ -700,11 +846,13 @@ export async function createOfficialMatriculeAction(
   const { data: matchingProfile } = await adminClient
     .from("profiles")
     .select("id")
+    .eq("university_id", universityId)
     .eq("email", email)
     .maybeSingle();
   if (matchingProfile?.id) {
     const { error: claimError } = await adminClient.rpc("claim_student_matricule", {
       p_user_id: matchingProfile.id,
+      p_university_id: universityId,
       p_matricule: normalizedMatricule,
     });
     if (claimError) {

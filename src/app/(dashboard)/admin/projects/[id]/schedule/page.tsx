@@ -29,7 +29,8 @@ export default async function ScheduleProjectPage({
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["admin", "director"].includes(profile.role)) {
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  if (!profile || !["admin", "director"].includes(effectiveRole ?? "")) {
     redirect("/dashboard");
   }
 
