@@ -6,6 +6,7 @@ import { loginSchema, registerSchema } from "@/lib/validations/auth";
 import type { ApiResponse } from "@/types";
 import { revalidatePath } from "next/cache";
 import { getPublicAppUrl } from "@/lib/config/app-url";
+import { resolveAccessRole } from "@/lib/auth/resolve-access-role";
 
 export async function loginAction(
   formData: FormData,
@@ -44,7 +45,8 @@ export async function loginAction(
 
   revalidatePath("/", "layout");
   const { data: effectiveRole } = await supabase.rpc("effective_user_role");
-  return { success: true, data: { id: data.user.id, role: effectiveRole ?? "student" } };
+  const role = resolveAccessRole(profile?.role, effectiveRole) ?? "student";
+  return { success: true, data: { id: data.user.id, role } };
 }
 
 export async function registerAction(formData: FormData): Promise<ApiResponse<{ id: string }>> {

@@ -22,6 +22,8 @@ export function LoginForm({ initialError }: { initialError?: string }) {
         const role = response.data.role;
         if (role === "admin" || role === "director") {
           router.push("/admin");
+        } else if (role === "inactive_admin") {
+          router.push("/admin/access-pending");
         } else {
           router.push("/dashboard");
         }

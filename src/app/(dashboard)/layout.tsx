@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveAccessRole } from "@/lib/auth/resolve-access-role";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/actions";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
@@ -98,19 +99,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const notifications = notifsRes.data;
 
   const { data: effectiveRole } = await supabase.rpc("effective_user_role");
-  const isAdmin = effectiveRole === "admin" || effectiveRole === "director";
-  const isStudent = profile.role === "student";
+  const accessRole = resolveAccessRole(profile.role, effectiveRole);
+  const isAdmin = accessRole === "admin" || accessRole === "director";
+  const isStudent = accessRole === "student";
   const roleLabels: Record<string, string> = {
     student: "Étudiant",
     admin: "Administrateur",
     director: "Directeur",
+    inactive_admin: "Administrateur — mandat à confirmer",
   };
-  const currentRoleLabel = roleLabels[effectiveRole ?? profile.role] ?? profile.role;
+  const currentRoleLabel = roleLabels[accessRole ?? profile.role] ?? profile.role;
 
   // Les admin/director ne voient pas la navigation étudiant (création de projets)
   const studentNavItems = isStudent ? NAV_ITEMS : [];
   const adminNavItems = isAdmin ? ADMIN_NAV_ITEMS.filter(
-    (item) => !("directorOnly" in item && item.directorOnly) || effectiveRole === "director"
+    (item) => !("directorOnly" in item && item.directorOnly) || accessRole === "director"
   ) : [];
 
   return (
@@ -213,7 +216,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <DashboardHeader
           userEmail={user.email || ""}
           userName={profile?.full_name || ""}
-          userRole={profile.role}
+          userRole={accessRole ?? profile.role}
           roleLabel={currentRoleLabel}
           navItems={studentNavItems}
           adminNavItems={adminNavItems}

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
 import { isAdminInvitationLink } from "@/lib/auth/admin-invitation-link";
+import { accessRoleHome, resolveAccessRole } from "@/lib/auth/resolve-access-role";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
     });
 
     let exchangeSucceeded = false;
+    let adminInvitationAccepted = false;
 
     if (code) {
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
@@ -83,6 +85,7 @@ export async function GET(request: NextRequest) {
             response.headers.set("Location", new URL(`/auth/login?error=${encodeURIComponent("Cette invitation est expirée, déjà utilisée ou ne correspond pas à ce compte. Demandez une nouvelle invitation au directeur.")}`, origin).toString());
             return response;
           }
+          adminInvitationAccepted = true;
         }
 
         // The database procedure independently checks email confirmation and performs
@@ -107,12 +110,12 @@ export async function GET(request: NextRequest) {
           .single();
 
         if (!profileError && profile?.role) {
+          const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+          const accessRole = resolveAccessRole(profile.role, effectiveRole);
           const destination =
-            profile.role === "admin"
-              ? user.user_metadata?.admin_setup_required ? "/admin/profile/complete" : "/admin"
-              : profile.role === "director"
-                ? "/admin"
-                : "/dashboard";
+            adminInvitationAccepted && user.user_metadata?.admin_setup_required
+              ? "/admin/profile/complete"
+              : accessRoleHome(accessRole);
 
           // Conserver la même réponse qui a reçu les cookies Supabase, sans en perdre les options.
           response.headers.set("Location", new URL(destination, origin).toString());

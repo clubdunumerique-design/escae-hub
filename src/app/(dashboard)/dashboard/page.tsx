@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
+import { resolveAccessRole } from "@/lib/auth/resolve-access-role";
 
 export const dynamic = "force-dynamic";
 
@@ -51,9 +52,15 @@ export default async function DashboardPage() {
   let profile = profileRes.data;
   const projects = projectsRes.data;
 
+  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  const accessRole = resolveAccessRole(profile?.role, effectiveRole);
+  if (accessRole === "admin" || accessRole === "director") redirect("/admin");
+  if (accessRole === "inactive_admin") redirect("/admin/access-pending");
+
   // Retry matching for a confirmed student who visits after their registry
   // record has been validated or corrected. This also repairs existing accounts.
   if (
+    accessRole === "student" &&
     profile?.role === "student" &&
     !profile.is_verified &&
     user.email_confirmed_at
@@ -71,12 +78,6 @@ export default async function DashboardPage() {
         profile = refreshedProfile;
       }
     }
-  }
-
-  // Rediriger les admin/director vers leur espace dédié
-  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
-  if (effectiveRole === "admin" || effectiveRole === "director") {
-    redirect("/admin");
   }
 
   const stats = {

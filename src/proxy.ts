@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { accessRoleHome, resolveAccessRole } from "@/lib/auth/resolve-access-role";
 
 /**
  * Le middleware intercepte les requêtes pour rafraîchir la session Supabase
@@ -64,6 +65,35 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/projects") ||
     request.nextUrl.pathname.startsWith("/admin");
 
+  if (user && request.nextUrl.pathname.startsWith("/admin")) {
+    const [{ data: effectiveRole }, { data: profile }] = await Promise.all([
+      supabase.rpc("effective_user_role"),
+      supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+    ]);
+    const accessRole = resolveAccessRole(profile?.role, effectiveRole);
+    const isAccessPendingRoute = request.nextUrl.pathname === "/admin/access-pending";
+    const isNewAccountSetup =
+      request.nextUrl.pathname === "/admin/profile/complete" &&
+      user.user_metadata?.admin_setup_required === true;
+
+    if (isAccessPendingRoute) {
+      if (accessRole === "admin" || accessRole === "director") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/admin";
+        return NextResponse.redirect(url);
+      }
+      if (accessRole !== "inactive_admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/dashboard";
+        return NextResponse.redirect(url);
+      }
+    } else if (!isNewAccountSetup && accessRole !== "admin" && accessRole !== "director") {
+      const url = request.nextUrl.clone();
+      url.pathname = accessRoleHome(accessRole);
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (isProtectedRoute && !user) {
     // Redirection vers la connexion si non authentifié
     const url = request.nextUrl.clone();
@@ -75,11 +105,11 @@ export async function proxy(request: NextRequest) {
   // Les Server Actions et RLS appliquent leurs propres contrôles indépendants.
   if (user && request.nextUrl.pathname.startsWith("/projects")) {
     const { data: role } = await supabase.rpc("effective_user_role");
-    if (role !== "student") {
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    const accessRole = resolveAccessRole(profile?.role, role);
+    if (accessRole !== "student") {
       const url = request.nextUrl.clone();
-      url.pathname = role === "admin" || role === "director"
-        ? "/admin"
-        : "/";
+      url.pathname = accessRoleHome(accessRole);
       return NextResponse.redirect(url);
     }
   }
@@ -89,9 +119,8 @@ export async function proxy(request: NextRequest) {
     let roleHomePath = "/dashboard";
     try {
       const { data: role } = await supabase.rpc("effective_user_role");
-      if (role === "admin" || role === "director") {
-        roleHomePath = "/admin";
-      }
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      roleHomePath = accessRoleHome(resolveAccessRole(profile?.role, role));
     } catch {
       // En cas d'erreur de lecture du profil, conserver /dashboard par défaut
     }
