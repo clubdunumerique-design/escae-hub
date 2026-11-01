@@ -19,6 +19,11 @@ export async function GET(request: NextRequest) {
     !requestedNext.includes("\\")
       ? requestedNext
       : "/auth/confirmed";
+  // Escape characters that could terminate the inline script when the local
+  // return path is embedded in the hash-transition response.
+  const nextJson = JSON.stringify(next).replace(/[<>&]/g, (character) =>
+    ({ "<": "\\u003c", ">": "\\u003e", "&": "\\u0026" })[character]!,
+  );
 
   // Si Supabase renvoie une erreur directe
   if (error) {
@@ -134,9 +139,9 @@ export async function GET(request: NextRequest) {
   }
 
   // 2. Si aucun paramètre n'a été transmis dans l'URL de requête (GET direct) :
-  // Il est possible que le client ait reçu des hash fragments (#access_token=...)
-  // Les fragments ne sont jamais envoyés au serveur HTTP. On renvoie donc une page HTML
-  // de transition pour lire le hash côté client et rediriger vers /auth/confirmed.
+  // Les fragments ne sont jamais envoyés au serveur HTTP. Conserver la destination
+  // demandée est essentiel : les invitations admin doivent traiter leur jeton lié
+  // au mandat, même quand Supabase utilise le flux implicite.
   return new NextResponse(
     `<!DOCTYPE html>
 <html>
@@ -150,7 +155,7 @@ export async function GET(request: NextRequest) {
     </div>
     <script>
       if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('type='))) {
-        window.location.href = '/auth/confirmed' + window.location.hash;
+        window.location.replace(${nextJson} + window.location.hash);
       } else {
         window.location.href = '/auth/login?error=' + encodeURIComponent('Lien de confirmation invalide ou expiré.');
       }

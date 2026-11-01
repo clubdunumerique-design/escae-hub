@@ -11,6 +11,11 @@ export function AuthHashListener() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // This route consumes the Supabase hash and the appointment-bound token.
+    // Redirecting it to /auth/confirmed would confirm only the email and drop
+    // the administrator invitation context.
+    if (window.location.pathname === "/auth/admin-invitation-accept") return;
+
     const hash = window.location.hash;
     if (!hash) return;
 
