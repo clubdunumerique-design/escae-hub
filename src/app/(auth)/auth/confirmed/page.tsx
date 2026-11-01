@@ -41,8 +41,17 @@ export default function ConfirmedPage() {
           isFinishingUser = true;
           await completeStudentMatriculeClaimAction();
           setUserEmail(user.email ?? null);
-          await loadRole(user.id);
+          const { data: accessActivated, error: activationError } = await supabase.rpc(
+            "activate_pending_admin_access_for_current_user",
+          );
+          if (activationError) {
+            console.error("Could not activate email-confirmed administrator access:", activationError.message);
+          }
+          const role = await loadRole(user.id);
           setStatus("success");
+          if (role === "admin" || role === "director" || accessActivated === true) {
+            router.replace("/admin");
+          }
         };
         // 1. Vérifier si un hash d'erreur est présent
         if (typeof window !== "undefined" && window.location.hash) {

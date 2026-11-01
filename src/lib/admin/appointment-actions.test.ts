@@ -32,7 +32,7 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
       getUser: vi.fn(),
     },
     rpc: vi.fn().mockImplementation((name: string) => Promise.resolve({
-      data: name === "create_admin_appointment_invitation" ? "appt-created-001" : true,
+      data: name === "create_admin_access_invitation" ? "appt-created-001" : true,
       error: null,
     })),
     from: vi.fn(),
@@ -89,7 +89,7 @@ function setupDirectorSession(directorId = "dir-001") {
   mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
   mockAdminClient.auth.admin.generateLink.mockResolvedValue({ data: { properties: { action_link: "https://auth.example.test/verify?token=one-time" } }, error: null });
   mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({
-    data: name === "create_admin_appointment_invitation" ? "appt-created-001" : true,
+    data: name === "create_admin_access_invitation" ? "appt-created-001" : true,
     error: null,
   }));
   mockServerClient.auth.getUser.mockResolvedValue({
@@ -233,7 +233,7 @@ describe("nominateAdminAction", () => {
     }));
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith(expect.objectContaining({
       email: "jean.admin@example.com",
-      options: expect.objectContaining({ emailRedirectTo: expect.stringContaining("appointmentId%3D") , shouldCreateUser: false }),
+      options: expect.objectContaining({ emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed"), shouldCreateUser: false }),
     }));
   });
 
@@ -297,7 +297,7 @@ describe("nominateAdminAction", () => {
     expect(result.success).toBe(true);
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
       email: "existing@example.com",
-      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"), shouldCreateUser: false },
+      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed"), shouldCreateUser: false },
     });
     expect(mockAdminClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
   });
@@ -343,7 +343,7 @@ describe("nominateAdminAction", () => {
     expect(result.success).toBe(true);
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
       email: "existing@example.com",
-      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"), shouldCreateUser: false },
+      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed"), shouldCreateUser: false },
     });
   });
 

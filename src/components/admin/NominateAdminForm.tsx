@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Formulaire de nomination d'un nouvel administrateur.
+ * Formulaire d'attribution d'un accès administrateur.
  * Réservé au directeur — appelé depuis la page /admin/appointments.
  */
 
@@ -21,7 +21,7 @@ export function NominateAdminForm({ universities }: { universities: UniversityOp
       if (res.success) {
         setResult({
           success: true,
-          message: "Invitation envoyée par e-mail. Dès que la personne ouvrira le lien et acceptera la nomination, son accès sera activé automatiquement.",
+          message: "E-mail envoyé. Dès que la personne confirme son adresse avec le lien reçu, son accès administrateur s’active automatiquement.",
         });
         // Réinitialiser le formulaire
         const form = document.getElementById("nominate-admin-form") as HTMLFormElement;
@@ -84,32 +84,6 @@ export function NominateAdminForm({ universities }: { universities: UniversityOp
             <option value="all_universities">Les deux universités</option>
           </select>
         </div>
-        <div>
-          <label htmlFor="nominate-start" className="mb-1.5 block text-sm font-medium text-white/70">Début du mandat <span className="text-red-400">*</span></label>
-          <input id="nominate-start" name="startDate" type="date" required disabled={isPending} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white" />
-        </div>
-        <div>
-          <label htmlFor="nominate-end" className="mb-1.5 block text-sm font-medium text-white/70">Fin du mandat <span className="text-red-400">*</span></label>
-          <input id="nominate-end" name="endDate" type="date" required disabled={isPending} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white" />
-        </div>
-      </div>
-
-      {/* Description de mission */}
-      <div>
-        <label htmlFor="nominate-mission" className="mb-1.5 block text-sm font-medium text-white/70">
-          Description de la mission <span className="text-red-400">*</span>
-        </label>
-        <textarea
-          id="nominate-mission"
-          name="missionDescription"
-          rows={3}
-          required
-          minLength={2}
-          maxLength={1000}
-          placeholder="Décrivez les responsabilités et objectifs de ce mandat…"
-          disabled={isPending}
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none transition focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/30 disabled:opacity-50 resize-none"
-        />
       </div>
 
       {/* Message de retour */}
@@ -130,7 +104,7 @@ export function NominateAdminForm({ universities }: { universities: UniversityOp
       {/* Bouton de soumission */}
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-white/30">
-          La personne nommée recevra un lien personnel à usage unique par e-mail.
+          L’accès est attribué par la direction et activé dès la confirmation du lien envoyé par e-mail.
         </p>
         <button
           id="nominate-submit-btn"

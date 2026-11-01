@@ -24,9 +24,6 @@ const nominateAdminSchema = z.object({
   email: z.string().email("Adresse email invalide."),
   universityId: z.string().uuid("Université invalide."),
   accessScope: z.enum(["own_university", "all_universities"]),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date de début invalide."),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date de fin invalide."),
-  missionDescription: z.string().min(2).max(1000),
 });
 
 const closeAppointmentSchema = z.object({
@@ -38,12 +35,11 @@ const closeAppointmentSchema = z.object({
 function createAppointmentToken() {
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
-  return { token, tokenHash };
+  return tokenHash;
 }
 
-function appointmentCallbackUrl(appUrl: string, appointmentId: string, token: string) {
-  const next = `/auth/admin-invitation-accept?appointmentId=${encodeURIComponent(appointmentId)}&token=${encodeURIComponent(token)}`;
-  return `${appUrl}/auth/callback?next=${encodeURIComponent(next)}`;
+function adminAccessCallbackUrl(appUrl: string) {
+  return `${appUrl}/auth/callback?next=%2Fauth%2Fconfirmed`;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,8 +112,8 @@ async function writeAuditLog({
  * Flux :
  * 1. Vérifier que l'appelant est directeur
  * 2. Vérifier les doublons (compte existant / mandat actif)
- * 3. Créer ou inviter le compte Supabase Auth sans accorder le rôle admin
- * 4. Créer l'enregistrement admin_appointments
+ * 3. Préparer le compte Supabase Auth sans accorder le rôle admin
+ * 4. Créer une affectation d'accès en attente de confirmation de l'e-mail
  * 5. Journaliser l'action
  * 6. Notifier l'administrateur nommé (si compte existant)
  */
@@ -135,20 +131,14 @@ export async function nominateAdminAction(
     email: formData.get("email"),
     universityId: formData.get("universityId"),
     accessScope: formData.get("accessScope"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    missionDescription: formData.get("missionDescription"),
   });
 
   if (!parsed.success) {
     return { success: false, error: parsed.error.errors[0].message, code: "VALIDATION_ERROR" };
   }
 
-  const { fullName, email: submittedEmail, universityId, accessScope, startDate, endDate, missionDescription } = parsed.data;
+  const { fullName, email: submittedEmail, universityId, accessScope } = parsed.data;
   const email = submittedEmail.trim().toLowerCase();
-  if (startDate > endDate) {
-    return { success: false, error: "La date de fin doit être postérieure ou égale à la date de début.", code: "VALIDATION_ERROR" };
-  }
   const appUrl = getPublicAppUrl();
   if (!appUrl) {
     return { success: false, error: "L'URL publique de la plateforme n'est pas configurée. Aucune invitation n'a été envoyée." };
@@ -188,23 +178,20 @@ export async function nominateAdminAction(
     targetUser = created.user;
   }
 
-  const { token, tokenHash } = createAppointmentToken();
+  const tokenHash = createAppointmentToken();
   const { data: appointmentId, error: appointmentError } = await supabase.rpc(
-    "create_admin_appointment_invitation",
+    "create_admin_access_invitation",
     {
       p_admin_id: targetUser.id,
       p_recipient_email: email,
       p_university_id: universityId,
       p_access_scope: accessScope,
-      p_start_date: startDate,
-      p_end_date: endDate,
-      p_mission_description: missionDescription,
       p_token_hash: tokenHash,
     },
   );
   if (appointmentError || !appointmentId) {
     if (appointmentError?.code === "23505") {
-      return { success: false, error: "Une nomination ouverte existe déjà pour ce compte et cette université.", code: "DUPLICATE_APPOINTMENT" };
+      return { success: false, error: "Un accès administrateur actif ou en attente couvre déjà ce périmètre.", code: "DUPLICATE_APPOINTMENT" };
     }
     return { success: false, error: appointmentError?.message ?? "Échec de création du mandat." };
   }
@@ -212,7 +199,7 @@ export async function nominateAdminAction(
   const { error: emailError } = await adminClient.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: appointmentCallbackUrl(appUrl, appointmentId, token),
+      emailRedirectTo: adminAccessCallbackUrl(appUrl),
       shouldCreateUser: false,
     },
   });
@@ -232,7 +219,7 @@ export async function nominateAdminAction(
       userId: targetUser.id,
       type: "admin_nominated",
       title: "🎉 Vous avez été nommé administrateur",
-      message: `${director.full_name} vous a nommé(e) administrateur(rice). Consultez l’invitation sécurisée envoyée par e-mail pour accepter la nomination.`,
+      message: `${director.full_name} vous a attribué un accès administrateur. Ouvrez le lien reçu par e-mail pour confirmer votre adresse; votre tableau de bord sera activé automatiquement.`,
       linkUrl: "/auth/login",
     });
   }
@@ -329,7 +316,7 @@ export async function resendAdminInvitationAction(
     return { success: false, error: "Adresse e-mail du compte introuvable." };
   }
 
-  const { token, tokenHash } = createAppointmentToken();
+  const tokenHash = createAppointmentToken();
   const sessionClient = await createSupabaseServerClient();
   const { data: issued, error: issueError } = await sessionClient.rpc(
     "issue_admin_appointment_invitation_token",
@@ -339,7 +326,7 @@ export async function resendAdminInvitationAction(
 
   const { error: emailError } = await adminClient.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: appointmentCallbackUrl(appUrl, appointment.id, token), shouldCreateUser: false },
+    options: { emailRedirectTo: adminAccessCallbackUrl(appUrl), shouldCreateUser: false },
   });
   if (emailError) {
     await writeAuditLog({ actorId: user.id, action: "admin.invitation_resend_failed", targetId: appointment.id, targetType: "admin_appointment", details: { error: emailError.message } });

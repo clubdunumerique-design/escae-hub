@@ -47,8 +47,8 @@ export default async function AdminAppointmentsPage() {
     .order("created_at", { ascending: false });
 
   const today = new Date().toISOString().slice(0, 10);
-  const active = appointments?.filter((a) => a.status === "active" && (!a.end_date || a.end_date >= today)) ?? [];
-  const pending = appointments?.filter((a) => a.status === "pending_acceptance") ?? [];
+  const active = appointments?.filter((a) => a.status === "active" && a.university_id && a.access_scope && (!a.end_date || a.end_date >= today)) ?? [];
+  const pending = appointments?.filter((a) => a.status === "pending_acceptance" && a.university_id && a.access_scope) ?? [];
   const expired = appointments?.filter((a) => a.status === "active" && !!a.end_date && a.end_date < today)
     .map((a) => ({ ...a, status: "expired" as const })) ?? [];
   const history = [
@@ -89,7 +89,7 @@ export default async function AdminAppointmentsPage() {
           <div>
             <h1 className="text-2xl font-extrabold text-white">Gestion des administrateurs</h1>
             <p className="text-sm text-white/40">
-              Nomination, suivi et historique des mandats — exclusif au directeur.
+              Attribuez les accès par université. La confirmation de l’e-mail active automatiquement le tableau de bord.
             </p>
           </div>
         </div>
@@ -99,7 +99,7 @@ export default async function AdminAppointmentsPage() {
       {hasActiveAdmin && (
         <section>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/30">
-            Administrateur en fonction
+            Accès administrateur actifs
           </h2>
           <div className="space-y-3">
             {active.map((appt) => (
@@ -107,19 +107,17 @@ export default async function AdminAppointmentsPage() {
                 key={appt.id}
                 appointment={appt as unknown as AdminAppointmentWithProfiles}
                 universities={universities}
-                canClose={true}
-                canRevoke={true}
               />
             ))}
           </div>
         </section>
       )}
 
-      {/* Invitations en attente */}
+      {/* Confirmations e-mail en attente */}
       {hasPendingAdmin && (
         <section>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/30">
-            Invitations en attente d&apos;acceptation
+            En attente de confirmation par e-mail
           </h2>
           <div className="space-y-3">
             {pending.map((appt) => (
@@ -127,8 +125,6 @@ export default async function AdminAppointmentsPage() {
                 key={appt.id}
                 appointment={appt as unknown as AdminAppointmentWithProfiles}
                 universities={universities}
-                canClose={false}
-                canRevoke={true}
               />
             ))}
           </div>
@@ -138,13 +134,13 @@ export default async function AdminAppointmentsPage() {
       {/* Formulaire de nomination */}
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/30">
-          "Nommer un administrateur"
+          "Attribuer un accès administrateur"
         </h2>
         <div className="rounded-xl border border-white/10 bg-white/5 p-6">
           {(hasActiveAdmin || hasPendingAdmin) && (
             <div className="mb-4 rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-3">
               <p className="text-xs text-sky-400">
-                ℹ️ Plusieurs administrateurs et mandats peuvent être actifs simultanément. Un même compte peut recevoir un mandat par université.
+                ℹ️ Plusieurs administrateurs peuvent être actifs simultanément. Un même compte peut avoir plusieurs périmètres universitaires.
               </p>
             </div>
           )}
@@ -156,7 +152,7 @@ export default async function AdminAppointmentsPage() {
       {history.length > 0 && (
         <section>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/30">
-            Historique des mandats ({history.length})
+            Historique archivé ({history.length})
           </h2>
           <AppointmentHistory appointments={history as unknown as AdminAppointmentWithProfiles[]} />
         </section>
@@ -164,7 +160,7 @@ export default async function AdminAppointmentsPage() {
 
       {appointments?.length === 0 && (
         <div className="rounded-xl border border-white/10 bg-white/5 py-12 text-center text-white/30">
-          Aucun mandat enregistré pour le moment.
+          Aucun accès administrateur enregistré pour le moment.
         </div>
       )}
     </div>

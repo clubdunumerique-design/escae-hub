@@ -54,9 +54,8 @@ export function AdminInvitationAcceptClient({
         window.history.replaceState(null, "", window.location.pathname);
         if (cancelled) return;
 
-        const needsProfileSetup = userData.user.user_metadata?.admin_setup_required === true;
-        setMessage("Nomination acceptée. Votre accès administrateur est activé.");
-        router.replace(needsProfileSetup ? "/admin/profile/complete" : "/admin");
+        setMessage("Votre accès administrateur est activé.");
+        router.replace("/admin");
       } catch (cause) {
         if (cancelled) return;
         window.history.replaceState(null, "", window.location.pathname);
@@ -75,7 +74,7 @@ export function AdminInvitationAcceptClient({
       <section className="w-full max-w-xl rounded-2xl border border-white/10 bg-white/[0.04] p-8 text-center shadow-xl">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">Invitation administrateur</p>
         <h1 className="mt-3 text-2xl font-bold text-white">
-          {error ? "Invitation non validée" : "Activation de votre accès"}
+          {error ? "Accès non activé" : "Activation de votre accès"}
         </h1>
         <p className={`mt-4 leading-7 ${error ? "text-amber-200/80" : "text-white/65"}`} role={error ? "alert" : "status"}>
           {error ?? message}

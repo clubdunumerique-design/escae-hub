@@ -78,7 +78,18 @@ export async function GET(request: NextRequest) {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        if (isAdminInvitationLink(type, next)) {
+        if (user.email_confirmed_at) {
+          const { data: accessActivated, error: accessActivationError } = await supabase.rpc(
+            "activate_pending_admin_access_for_current_user",
+          );
+          if (accessActivationError) {
+            console.error("Admin access activation failed:", accessActivationError.message);
+          } else {
+            adminInvitationAccepted = accessActivated === true;
+          }
+        }
+
+        if (!adminInvitationAccepted && isAdminInvitationLink(type, next)) {
           const inviteUrl = new URL(next, origin);
           const appointmentId = inviteUrl.searchParams.get("appointmentId");
           const invitationToken = inviteUrl.searchParams.get("token");
@@ -117,10 +128,9 @@ export async function GET(request: NextRequest) {
         if (!profileError && profile?.role) {
           const { data: effectiveRole } = await supabase.rpc("effective_user_role");
           const accessRole = resolveAccessRole(profile.role, effectiveRole);
-          const destination =
-            adminInvitationAccepted && user.user_metadata?.admin_setup_required
-              ? "/admin/profile/complete"
-              : accessRoleHome(accessRole);
+          const destination = adminInvitationAccepted
+            ? "/admin"
+            : accessRoleHome(accessRole);
 
           // Conserver la même réponse qui a reçu les cookies Supabase, sans en perdre les options.
           response.headers.set("Location", new URL(destination, origin).toString());
