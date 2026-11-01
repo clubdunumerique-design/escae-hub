@@ -341,6 +341,9 @@ DECLARE
   v_status project_status;
   v_allowed BOOLEAN := false;
   v_comment TEXT := nullif(btrim(p_comment), '');
+  v_is_student BOOLEAN := false;
+  v_is_admin BOOLEAN := false;
+  v_is_director BOOLEAN := false;
 BEGIN
   IF v_user_id IS NULL THEN RETURN false; END IF;
   IF length(coalesce(v_comment, '')) > 1000 THEN RAISE EXCEPTION 'Comment is too long'; END IF;

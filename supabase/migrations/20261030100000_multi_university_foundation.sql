@@ -1,3 +1,4 @@
+
 -- Draft for review; do not apply until the read-only preflight report is reviewed.
 -- Adds the two institutions, backfills existing student and registry rows to UAC,
 -- and scopes matricule uniqueness to the institution.
@@ -31,18 +32,22 @@ BEGIN
     RAISE EXCEPTION 'Preflight required: claimed profile and registry matricules disagree.';
   END IF;
 
+  -- Legacy claimed records: keep role, email and matricule checks.
+  -- Name differences are tolerated because existing records may use
+  -- different name orders, abbreviations or additional given names.
   IF EXISTS (
     SELECT 1
     FROM public.student_matricule_registry r
     JOIN public.profiles p ON p.id = r.claimed_by_user_id
     WHERE p.role <> 'student'
        OR lower(btrim(p.email)) <> lower(btrim(r.email))
-       OR lower(regexp_replace(normalize(btrim(p.full_name), NFC), '[[:space:]]+', ' ', 'g'))
-          <> lower(regexp_replace(normalize(btrim(r.full_name), NFC), '[[:space:]]+', ' ', 'g'))
   ) THEN
-    RAISE EXCEPTION 'Preflight required: claimed profiles have role, email, or identity mismatches.';
+    RAISE EXCEPTION 'Preflight required: claimed profiles have role or email mismatches.';
   END IF;
 
+  -- Verified profiles must still have an explicitly verified claim,
+  -- a matching matricule, matching Auth email and confirmed email.
+  -- Exact full-name equality is not required for legacy records.
   IF EXISTS (
     SELECT 1
     FROM public.profiles p
@@ -55,8 +60,7 @@ BEGIN
           AND r.verification_status = 'verified'
           AND upper(btrim(r.matricule)) = upper(btrim(p.student_id))
           AND lower(btrim(r.email)) = lower(btrim(u.email))
-          AND lower(regexp_replace(normalize(btrim(r.full_name), NFC), '[[:space:]]+', ' ', 'g'))
-              = lower(regexp_replace(normalize(btrim(p.full_name), NFC), '[[:space:]]+', ' ', 'g'))
+          AND lower(btrim(p.email)) = lower(btrim(u.email))
           AND u.email_confirmed_at IS NOT NULL
       )
   ) THEN
