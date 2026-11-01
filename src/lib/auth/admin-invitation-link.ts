@@ -1,15 +1,19 @@
 const ADMIN_PROFILE_PATH = "/auth/admin-invitation-accept"
 
 /**
- * Invitation links are bound to the admin-completion callback. Recovery links
- * are accepted here only for compatibility with invitations sent before the
- * dedicated Magic Link flow was deployed.
+ * The callback destination is the discriminator: Supabase can report a
+ * different OTP type for new and existing accounts. The database RPC still
+ * validates the appointment, one-time token, expiry, and authenticated email.
  */
-export function isAdminInvitationLink(type: string | null, next: string): boolean {
-  // The nomination flow sets this exact local callback destination. Some PKCE
-  // callbacks omit `type`, so the destination is the stable discriminator.
-  return (
-    next.startsWith(`${ADMIN_PROFILE_PATH}?`) &&
-    (type === null || type === "invite" || type === "magiclink" || type === "recovery")
-  );
+export function isAdminInvitationLink(_type: string | null, next: string): boolean {
+  try {
+    const url = new URL(next, "https://local.invalid");
+    return (
+      url.pathname === ADMIN_PROFILE_PATH &&
+      Boolean(url.searchParams.get("appointmentId")) &&
+      Boolean(url.searchParams.get("token"))
+    );
+  } catch {
+    return false;
+  }
 }

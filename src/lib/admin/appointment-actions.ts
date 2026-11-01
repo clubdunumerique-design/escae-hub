@@ -232,7 +232,7 @@ export async function nominateAdminAction(
       userId: targetUser.id,
       type: "admin_nominated",
       title: "🎉 Vous avez été nommé administrateur",
-      message: `${director.full_name} vous a nommé(e) administrateur(rice). Consultez l’invitation sécurisée envoyée par e-mail pour accepter le mandat.`,
+      message: `${director.full_name} vous a nommé(e) administrateur(rice). Consultez l’invitation sécurisée envoyée par e-mail pour accepter la nomination.`,
       linkUrl: "/auth/login",
     });
   }
@@ -343,7 +343,7 @@ export async function resendAdminInvitationAction(
   });
   if (emailError) {
     await writeAuditLog({ actorId: user.id, action: "admin.invitation_resend_failed", targetId: appointment.id, targetType: "admin_appointment", details: { error: emailError.message } });
-    return { success: false, error: "Le lien sécurisé n'a pas pu être envoyé." };
+    return { success: false, error: "Le lien sécurisé n'a pas pu être envoyé par e-mail." };
   }
 
   await writeAuditLog({ actorId: user.id, action: "admin.invitation_resent", targetId: appointment.id, targetType: "admin_appointment" });  revalidatePath("/admin/appointments");

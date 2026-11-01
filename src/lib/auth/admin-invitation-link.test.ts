@@ -21,8 +21,15 @@ describe("isAdminInvitationLink", () => {
     expect(isAdminInvitationLink("recovery", "/auth/reset-password")).toBe(false);
   });
 
-  it("never accepts other link types or callback destinations as a nomination", () => {
-    expect(isAdminInvitationLink("signup", invitationNext)).toBe(false);
+  it("accepts the appointment callback even when Supabase returns signup", () => {
+    expect(isAdminInvitationLink("signup", invitationNext)).toBe(true);
+    expect(isAdminInvitationLink("email", invitationNext)).toBe(true);
+  });
+
+  it("requires both appointment and token and rejects other callback destinations", () => {
+    expect(isAdminInvitationLink("magiclink", "/auth/admin-invitation-accept?appointmentId=appt-1")).toBe(false);
+    expect(isAdminInvitationLink("magiclink", "/auth/admin-invitation-accept?token=secret")).toBe(false);
     expect(isAdminInvitationLink("magiclink", "/dashboard")).toBe(false);
+    expect(isAdminInvitationLink("magiclink", "/auth/admin-invitation-accept/extra?appointmentId=appt-1&token=secret")).toBe(false);
   });
 });

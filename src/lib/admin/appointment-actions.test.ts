@@ -46,6 +46,7 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
         createUser: vi.fn().mockResolvedValue({ data: { user: { id: "created-admin-001" } }, error: null }),
         inviteUserByEmail: vi.fn(),
         getUserById: vi.fn(),
+        generateLink: vi.fn(),
       },
       signInWithOtp: vi.fn(),
       resetPasswordForEmail: vi.fn(),
@@ -86,6 +87,7 @@ function setupDirectorSession(directorId = "dir-001") {
   mockAdminClient.auth.admin.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
   mockAdminClient.auth.admin.createUser.mockResolvedValue({ data: { user: { id: "created-admin-001" } }, error: null });
   mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
+  mockAdminClient.auth.admin.generateLink.mockResolvedValue({ data: { properties: { action_link: "https://auth.example.test/verify?token=one-time" } }, error: null });
   mockServerClient.rpc.mockImplementation((name: string) => Promise.resolve({
     data: name === "create_admin_appointment_invitation" ? "appt-created-001" : true,
     error: null,
@@ -231,11 +233,11 @@ describe("nominateAdminAction", () => {
     }));
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith(expect.objectContaining({
       email: "jean.admin@example.com",
-      options: expect.objectContaining({ shouldCreateUser: false }),
+      options: expect.objectContaining({ emailRedirectTo: expect.stringContaining("appointmentId%3D") , shouldCreateUser: false }),
     }));
   });
 
-  it("envoie un lien de nomination séparé pour un compte déjà existant", async () => {
+  it("envoie un lien de nomination par e-mail pour un compte déjà existant", async () => {
     setupDirectorSession("dir-001");
     mockAdminClient.auth.admin.listUsers.mockResolvedValue({
       data: { users: [{ id: "existing-002", email: "existing@example.com" }] },
@@ -295,15 +297,12 @@ describe("nominateAdminAction", () => {
     expect(result.success).toBe(true);
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
       email: "existing@example.com",
-      options: {
-        emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"),
-        shouldCreateUser: false,
-      },
+      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"), shouldCreateUser: false },
     });
     expect(mockAdminClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
   });
 
-  it("renvoie le lien de nomination avec le modèle de Magic Link pour un mandat en attente", async () => {
+  it("renvoie le lien de nomination par e-mail pour un mandat en attente", async () => {
     setupDirectorSession("dir-001");
     mockAdminClient.auth.admin.getUserById.mockResolvedValue({
       data: { user: { email: "existing@example.com" } },
@@ -339,17 +338,12 @@ describe("nominateAdminAction", () => {
       throw new Error(`Unexpected table ${table}`);
     });
 
-    const result = await resendAdminInvitationAction(makeFormData({
-      appointmentId: "11111111-1111-4111-8111-111111111111",
-    }));
+    const result = await resendAdminInvitationAction(makeFormData({ appointmentId: "11111111-1111-4111-8111-111111111111" }));
 
     expect(result.success).toBe(true);
     expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
       email: "existing@example.com",
-      options: {
-        emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"),
-        shouldCreateUser: false,
-      },
+      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fadmin-invitation-accept%3FappointmentId%3D"), shouldCreateUser: false },
     });
   });
 

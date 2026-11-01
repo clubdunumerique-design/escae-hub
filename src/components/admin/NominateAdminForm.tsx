@@ -21,7 +21,7 @@ export function NominateAdminForm({ universities }: { universities: UniversityOp
       if (res.success) {
         setResult({
           success: true,
-          message: "Demande d'invitation envoyée. Vérifiez que le courriel arrive dans la boîte de réception ou les indésirables.",
+          message: "Invitation envoyée par e-mail. Dès que la personne ouvrira le lien et acceptera la nomination, son accès sera activé automatiquement.",
         });
         // Réinitialiser le formulaire
         const form = document.getElementById("nominate-admin-form") as HTMLFormElement;
@@ -130,7 +130,7 @@ export function NominateAdminForm({ universities }: { universities: UniversityOp
       {/* Bouton de soumission */}
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-white/30">
-          L&apos;administrateur recevra une invitation par email avec un lien sécurisé pour accéder à son compte.
+          La personne nommée recevra un lien personnel à usage unique par e-mail.
         </p>
         <button
           id="nominate-submit-btn"

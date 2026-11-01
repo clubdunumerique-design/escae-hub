@@ -98,7 +98,7 @@ export function AppointmentCard({ appointment, canClose, canRevoke, universities
       if (!res.success) {
         setError(res.error);
       } else {
-        setNotice("Nouveau lien de nomination envoyé. Il utilise le modèle d’invitation, pas celui de récupération du mot de passe.");
+        setNotice("Une nouvelle invitation a été envoyée par e-mail.");
       }
     });
   }
@@ -168,7 +168,7 @@ export function AppointmentCard({ appointment, canClose, canRevoke, universities
               disabled={isPending}
               className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-4 py-2 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/15 disabled:opacity-50"
             >
-              {isPending ? "Envoi en cours…" : "Renvoyer l’invitation"}
+              {isPending ? "Envoi en cours…" : "Renvoyer l’invitation par e-mail"}
             </button>
           )}
           {canClose && !showCloseForm && !showRevokeConfirm && (
