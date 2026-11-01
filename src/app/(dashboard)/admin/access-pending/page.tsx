@@ -28,7 +28,7 @@ export default async function AdminAccessPendingPage() {
           L’acceptation du lien personnel active automatiquement l’accès défini par la direction. Aucun périmètre accepté et actif n’est actuellement associé à ce compte.
         </p>
         <p className="mt-3 text-sm text-white/45">
-          Si vous avez déjà accepté un lien, demandez au directeur de préparer un nouveau lien WhatsApp et ouvrez-le avec la même adresse e-mail que celle de votre compte. Vous n’avez pas besoin de créer un autre compte.
+          Si vous avez déjà ouvert le lien reçu, demandez au directeur de renvoyer l’invitation par e-mail et ouvrez le nouveau lien avec la même adresse que votre compte. Vous n’avez pas besoin de créer un autre compte.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <a href="/auth/login" className="inline-flex rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15">
