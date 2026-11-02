@@ -16,10 +16,13 @@ const ACADEMIC_LEVELS = [
   "Doctorat / Recherche",
 ];
 
+const WHATSAPP_COMMUNITY_URL = "https://chat.whatsapp.com/CPpS2KZb4yH8rL5V4XMz9j?s=sw&p=a&iam=2";
+
 export function PublicMatriculeForm({ universities }: { universities: UniversityOption[] }) {
   const [isPending, startTransition] = useTransition();
   const [academicLevel, setAcademicLevel] = useState("");
   const [isLevelMenuOpen, setIsLevelMenuOpen] = useState(false);
+  const [communityJoined, setCommunityJoined] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{
     success: boolean;
     data?: {
@@ -118,29 +121,42 @@ export function PublicMatriculeForm({ universities }: { universities: University
           </div>
         </div>
 
-        {/* Prochaines étapes */}
-        <div className="mt-6 rounded-xl border border-[#03A61C]/20 bg-[#03A61C]/5 p-4 text-xs text-white/70 space-y-1.5">
-          <p className="font-bold text-[#79F281]">💡 Prochaine étape :</p>
-          {isMatched ? (
-            <p>
-              Votre compte Innovation Hub est relié à cette fiche. Les étudiants peuvent créer et soumettre des projets même si leur compte n&apos;est pas rapproché.
-            </p>
-          ) : isSignedIn ? (
-            <p>
-              Votre compte reste accessible. Si la fiche est en attente, elle devra être vérifiée par un responsable avant tout rapprochement validant le profil.
-            </p>
-          ) : (
-            <p>
-              Créez votre compte étudiant sur <strong>ESCAE Innovation Hub</strong> avec cette même adresse Gmail et confirmez-la. Le rapprochement sera tenté automatiquement.
-            </p>
-          )}
-        </div>
+        {/* Étape obligatoire : communauté puis compte Innovation Hub */}
+        <section className="mt-6 rounded-xl border border-[#03A61C]/30 bg-[#03A61C]/[0.07] p-4 text-sm text-white/75" aria-labelledby="community-step-title">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#79F281]">Étape obligatoire avant l’inscription au HUB</p>
+          <h3 id="community-step-title" className="mt-2 text-base font-bold text-white">Rejoignez la communauté des étudiants</h3>
+          <p className="mt-1 text-xs leading-relaxed text-white/65">
+            Ouvrez le lien ci-dessous pour rejoindre le groupe WhatsApp officiel. Après avoir rejoint la communauté, confirmez-le pour continuer vers l’inscription Innovation Hub.
+          </p>
+          <a
+            href={WHATSAPP_COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-4 py-3 text-sm font-bold text-[#8ff0aa] transition hover:bg-[#25D366]/20"
+          >
+            Rejoindre la communauté WhatsApp ↗
+          </a>
+          <label className="mt-4 flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-white/75">
+            <input
+              type="checkbox"
+              checked={communityJoined}
+              onChange={(event) => setCommunityJoined(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#03A61C]"
+            />
+            <span>Je confirme avoir rejoint la communauté étudiante. Cette confirmation est nécessaire pour continuer.</span>
+          </label>
+        </section>
 
-        {/* Actions */}
-        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+        <div className="mt-4 flex flex-col sm:flex-row gap-3">
           <Link
-            href={isSignedIn ? "/dashboard" : "/auth/register"}
-            onClick={() => {
+            aria-disabled={!communityJoined}
+            tabIndex={communityJoined ? undefined : -1}
+            href={communityJoined ? (isSignedIn ? "/dashboard" : "/auth/register") : "#community-step-title"}
+            onClick={(event) => {
+              if (!communityJoined) {
+                event.preventDefault();
+                return;
+              }
               if (isSignedIn) return;
               sessionStorage.setItem("escae-registration-prefill", JSON.stringify({
                 fullName,
@@ -149,9 +165,9 @@ export function PublicMatriculeForm({ universities }: { universities: University
                 universityId: resultData.universityId,
               }));
             }}
-            className="flex-1 text-center rounded-xl bg-[#03A61C] py-3.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_30px_rgba(5,242,40,0.6)]"
+            className={`flex-1 text-center rounded-xl py-3.5 text-sm font-bold transition-all ${communityJoined ? "bg-[#03A61C] text-white shadow-[0_0_20px_rgba(3,166,28,0.4)] hover:bg-[#05F228] hover:text-black hover:shadow-[0_0_30px_rgba(5,242,40,0.6)]" : "cursor-not-allowed bg-white/10 text-white/35"}`}
           >
-            {isSignedIn ? "Retourner à mon compte" : "Créer mon compte sur Innovation Hub"} &rarr;
+            {isSignedIn ? "Continuer vers mon espace" : "Continuer vers l’inscription HUB"} &rarr;
           </Link>
           <button
             type="button"
@@ -161,6 +177,15 @@ export function PublicMatriculeForm({ universities }: { universities: University
             Soumettre un autre matricule
           </button>
         </div>
+        {communityJoined && (
+          <p className="mt-3 text-center text-[11px] text-white/45">
+            {isMatched
+              ? "Votre compte est déjà relié à la fiche de collecte."
+              : isOfficiallyVerified
+                ? "Votre fiche est certifiée."
+                : "Après l’inscription et la confirmation de votre e-mail, le HUB tentera le rapprochement de votre matricule."}
+          </p>
+        )}
       </div>
     );
   }

@@ -23,6 +23,8 @@ const EMPTY_PREFILL: RegistrationPrefill = {
   universityId: "",
 };
 
+const WHATSAPP_COMMUNITY_URL = "https://chat.whatsapp.com/CPpS2KZb4yH8rL5V4XMz9j?s=sw&p=a&iam=2";
+
 export function RegisterForm({ universities }: RegisterFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +139,21 @@ export function RegisterForm({ universities }: RegisterFormProps) {
       <div>
         <label htmlFor="confirmPassword" className={labelClass}>Confirmer le mot de passe</label>
         <input id="confirmPassword" name="confirmPassword" type="password" required autoComplete="new-password" placeholder="••••••••" className={inputClass} />
+      </div>
+      <div className="rounded-lg border border-[#25D366]/25 bg-[#25D366]/[0.06] p-4">
+        <p className="text-sm font-semibold text-white">Rejoindre la communauté étudiante (obligatoire)</p>
+        <a
+          href={WHATSAPP_COMMUNITY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex text-sm font-semibold text-[#8ff0aa] underline underline-offset-4 hover:text-white"
+        >
+          Ouvrir le groupe WhatsApp ↗
+        </a>
+        <label className="mt-3 flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-white/65">
+          <input name="communityJoined" type="checkbox" value="yes" required className="mt-0.5 h-4 w-4 accent-[#03A61C]" />
+          <span>Je confirme avoir rejoint la communauté étudiante et souhaite poursuivre mon inscription.</span>
+        </label>
       </div>
       <button
         type="submit"

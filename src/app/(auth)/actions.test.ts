@@ -46,6 +46,7 @@ describe("registerAction matricule rules", () => {
     form.set("email", "etudiant@example.test");
     form.set("studentId", "ETU-2026-0024");
     form.set("universityId", universityId);
+    form.set("communityJoined", "yes");
     form.set("password", "MotDePasse123");
     form.set("confirmPassword", "MotDePasse123");
 

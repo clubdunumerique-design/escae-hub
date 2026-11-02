@@ -50,6 +50,13 @@ export async function loginAction(
 }
 
 export async function registerAction(formData: FormData): Promise<ApiResponse<{ id: string }>> {
+  if (formData.get("communityJoined") !== "yes") {
+    return {
+      success: false,
+      error: "Rejoignez d’abord la communauté WhatsApp étudiante et confirmez-le pour créer votre compte.",
+    };
+  }
+
   const fullName = formData.get("fullName") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
