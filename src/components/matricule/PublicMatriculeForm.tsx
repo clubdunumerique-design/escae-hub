@@ -60,90 +60,31 @@ export function PublicMatriculeForm({ universities }: { universities: University
   // Écran de confirmation de soumission
   if (submissionResult?.success && submissionResult.data) {
     const resultData = submissionResult.data;
-    const { matricule, fullName, status, isExistingUser, isExistingRecord, isSignedIn } = resultData;
-    const isMatched = isExistingUser;
-    const isOfficiallyVerified = status === "verified";
+    const { fullName, matricule, isSignedIn } = resultData;
 
     return (
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-8 backdrop-blur-xl shadow-2xl">
-        {/* En-tête succès */}
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#03A61C]/20 text-[#05F228] shadow-[0_0_30px_rgba(5,242,40,0.3)]">
-            <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+        <section className="mx-auto max-w-lg text-center" aria-labelledby="community-step-title">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/15 text-red-400 ring-1 ring-red-400/40">
+            <svg aria-hidden="true" className="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.3 3.9 1.9 18.5A1.8 1.8 0 0 0 3.5 21h17a1.8 1.8 0 0 0 1.6-2.5L13.7 3.9a2 2 0 0 0-3.4 0Z" />
             </svg>
           </div>
-
-          <span className="inline-block rounded-full bg-[#05F228]/10 px-3 py-1 text-xs font-semibold text-[#05F228]">
-            {isMatched
-              ? "Correspondance confirmée"
-              : isExistingRecord
-                ? "Fiche déjà collectée"
-                : isOfficiallyVerified
-                ? "Fiche officiellement certifiée"
-                : "Fiche enregistrée"}
-          </span>
-
-          <h2 className="mt-3 text-2xl font-extrabold text-white">
-            {isMatched
-              ? "Votre compte correspond à cette fiche"
-              : isExistingRecord
-                ? "Votre fiche existante a été retrouvée"
-                : "Votre fiche a été ajoutée au registre"}
+          <p className="text-sm font-extrabold uppercase tracking-wider text-red-400">Attention — obligatoire</p>
+          <h2 id="community-step-title" className="mt-2 text-2xl font-extrabold text-white">
+            Rejoignez la communauté pour continuer
           </h2>
-
-          <p className="mt-2 text-sm text-white/60 max-w-md mx-auto">
-            {isMatched
-              ? "Votre email confirmé, votre nom et votre matricule correspondent aux données collectées. Cette correspondance ne constitue pas une certification officielle de scolarité."
-              : isExistingRecord
-                ? "Aucune nouvelle fiche n’a été créée. Après confirmation de votre adresse, le HUB pourra tenter le rapprochement avec cette fiche. Une fiche en attente ne vérifie pas votre compte."
-                : isOfficiallyVerified
-                ? "Cette fiche a été marquée comme certifiée par le personnel autorisé."
-                : "Les informations sont collectées. Créez votre compte avec les mêmes nom et Gmail, puis confirmez l'adresse pour tenter le rapprochement automatique."}
-          </p>
-        </div>
-
-        {/* Récapitulatif */}
-        <div className="mt-6 rounded-xl border border-white/10 bg-white/3 p-4 space-y-2.5 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-white/40">Étudiant</span>
-            <span className="font-semibold text-white">{fullName}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/40">Matricule officiel</span>
-            <span className="font-mono font-bold text-[#05F228] tracking-wider">{matricule}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/40">Statut actuel</span>
-            <span className={`font-semibold ${isMatched || isOfficiallyVerified ? "text-emerald-400" : "text-amber-400"}`}>
-              {isMatched ? "Correspondance confirmée" : isOfficiallyVerified ? "Certifié" : "Collecté"}
-            </span>
-          </div>
-        </div>
-
-        {/* Étape obligatoire : communauté puis compte Innovation Hub */}
-        <section className="mt-6 rounded-xl border border-[#03A61C]/30 bg-[#03A61C]/[0.07] p-4 text-sm text-white/75" aria-labelledby="community-step-title">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#79F281]">Étape obligatoire avant l’inscription au HUB</p>
-          <h3 id="community-step-title" className="mt-2 text-base font-bold text-white">Rejoignez la communauté des étudiants</h3>
-          <p className="mt-1 text-xs leading-relaxed text-white/65">
-            Ouvrez le lien ci-dessous pour rejoindre le groupe WhatsApp officiel. Après avoir rejoint la communauté, confirmez-le pour continuer vers l’inscription Innovation Hub.
-          </p>
           <a
             href={WHATSAPP_COMMUNITY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-4 py-3 text-sm font-bold text-[#8ff0aa] transition hover:bg-[#25D366]/20"
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-4 text-base font-extrabold text-[#062b12] transition hover:bg-[#75f09b]"
           >
-            Rejoindre la communauté WhatsApp ↗
+            Rejoindre la communauté ↗
           </a>
-          <label className="mt-4 flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-white/75">
-            <input
-              type="checkbox"
-              checked={communityJoined}
-              onChange={(event) => setCommunityJoined(event.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#03A61C]"
-            />
-            <span>Je confirme avoir rejoint la communauté étudiante. Cette confirmation est nécessaire pour continuer.</span>
+          <label className="mt-5 flex cursor-pointer items-center justify-center gap-3 text-sm text-white/80">
+            <input type="checkbox" checked={communityJoined} onChange={(event) => setCommunityJoined(event.target.checked)} className="h-5 w-5 accent-[#03A61C]" />
+            <span>J’ai rejoint la communauté</span>
           </label>
         </section>
 
@@ -158,6 +99,7 @@ export function PublicMatriculeForm({ universities }: { universities: University
                 return;
               }
               if (isSignedIn) return;
+              sessionStorage.setItem("escae-community-joined", "yes");
               sessionStorage.setItem("escae-registration-prefill", JSON.stringify({
                 fullName,
                 email: resultData.email,
@@ -177,15 +119,6 @@ export function PublicMatriculeForm({ universities }: { universities: University
             Soumettre un autre matricule
           </button>
         </div>
-        {communityJoined && (
-          <p className="mt-3 text-center text-[11px] text-white/45">
-            {isMatched
-              ? "Votre compte est déjà relié à la fiche de collecte."
-              : isOfficiallyVerified
-                ? "Votre fiche est certifiée."
-                : "Après l’inscription et la confirmation de votre e-mail, le HUB tentera le rapprochement de votre matricule."}
-          </p>
-        )}
       </div>
     );
   }
