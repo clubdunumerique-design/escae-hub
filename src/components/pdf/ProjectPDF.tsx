@@ -1,143 +1,94 @@
-﻿import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import { LOGO_ESCAE_BASE64, LOGO_HUB_BASE64 } from './pdfLogos';
-
-// Utility: truncate text to N words, append ellipsis if cut
-function truncateWords(text: string | null | undefined, maxWords: number): string {
-  if (!text) return '';
-  const words = text.trim().split(/\s+/);
-  if (words.length <= maxWords) return text.trim();
-  return words.slice(0, maxWords).join(' ') + '…';
-}
-
-function wasTruncated(text: string | null | undefined, maxWords: number): boolean {
-  if (!text) return false;
-  return text.trim().split(/\s+/).length > maxWords;
-}
-
-// Word limits per field
-const WORD_LIMITS = {
-  description: 120,
-  objectives: 80,
-  problem: 80,
-  solution: 80,
-  feasibility: 60,
-  impact: 60,
-};
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { LOGO_ESCAE_BASE64, LOGO_HUB_BASE64 } from "./pdfLogos";
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 24,
-    paddingBottom: 40,
-    paddingHorizontal: 38,
-    fontFamily: 'Helvetica',
-    backgroundColor: '#ffffff',
-    color: '#1a1a1a',
-    fontSize: 9,
-    lineHeight: 1.38,
+    paddingTop: 88,
+    paddingBottom: 92,
+    paddingHorizontal: 44,
+    fontFamily: "Helvetica",
+    backgroundColor: "#ffffff",
+    color: "#17221a",
+    fontSize: 10,
+    lineHeight: 1.45,
   },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: '#074015',
-    marginBottom: 12,
+  runningHeader: {
+    position: "absolute",
+    top: 24,
+    left: 44,
+    right: 44,
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#1e6b37",
+    paddingBottom: 8,
   },
-  logoLeft: { width: 60, height: 42, objectFit: 'contain' },
-  logoRight: { width: 52, height: 46, objectFit: 'contain' },
-  headerCenter: { flex: 1, textAlign: 'center', paddingHorizontal: 10 },
+  logoEscae: { width: 58, height: 38, objectFit: "contain" },
+  logoHub: { width: 39, height: 38, objectFit: "contain" },
+  headerCenter: { flex: 1, textAlign: "center", paddingHorizontal: 10 },
   institutionName: {
-    fontSize: 9.5, fontWeight: 'bold', color: '#074015',
-    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 1,
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#173d24",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
   },
-  institutionSub: { fontSize: 7, color: '#4a5568', marginBottom: 3 },
-  documentBadge: {
-    fontSize: 10, fontWeight: 'bold', color: '#03A61C',
-    textTransform: 'uppercase', letterSpacing: 0.4,
+  institutionSub: { marginTop: 2, fontSize: 7, color: "#56615a" },
+  documentName: {
+    marginTop: 4,
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#1e6b37",
+    textTransform: "uppercase",
+    letterSpacing: 0.55,
   },
-  projectTitleBox: {
-    backgroundColor: '#f7faf7',
-    borderLeftWidth: 4, borderLeftColor: '#03A61C',
-    borderTopWidth: 1, borderTopColor: '#e2e8f0',
-    borderRightWidth: 1, borderRightColor: '#e2e8f0',
-    borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
-    padding: 8, marginBottom: 10, borderRadius: 2,
+  titleBlock: { marginBottom: 17, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: "#dce4dd" },
+  eyebrow: { fontSize: 8, fontWeight: "bold", color: "#587061", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 },
+  projectTitle: { fontSize: 18, lineHeight: 1.2, fontWeight: "bold", color: "#17221a", marginBottom: 8 },
+  projectMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  reference: { fontSize: 8.5, color: "#59655d" },
+  status: { fontSize: 8, fontWeight: "bold", color: "#1e6b37", textTransform: "uppercase" },
+  section: { marginBottom: 14 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 7 },
+  sectionNumber: { width: 22, fontSize: 9, fontWeight: "bold", color: "#1e6b37", marginRight: 5 },
+  sectionTitle: { flex: 1, fontSize: 9, fontWeight: "bold", color: "#244b30", textTransform: "uppercase", letterSpacing: 0.45 },
+  sectionRule: { width: 36, borderBottomWidth: 1, borderBottomColor: "#dce4dd", marginLeft: 8 },
+  infoList: { borderTopWidth: 1, borderTopColor: "#e7ece8" },
+  infoRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#e7ece8", paddingVertical: 5 },
+  infoLabel: { width: "31%", paddingRight: 8, fontSize: 9, color: "#657168" },
+  infoValue: { flex: 1, fontSize: 9.5, color: "#17221a" },
+  bodyText: { fontSize: 10, lineHeight: 1.5, color: "#28352c", textAlign: "justify" },
+  subheading: { marginTop: 5, marginBottom: 3, fontSize: 9, fontWeight: "bold", color: "#354d3c" },
+  teamList: { borderTopWidth: 1, borderTopColor: "#dce4dd" },
+  teamRow: { flexDirection: "row", alignItems: "flex-start", borderBottomWidth: 1, borderBottomColor: "#e7ece8", paddingVertical: 6 },
+  teamName: { width: "52%", paddingRight: 8, fontSize: 9.5, fontWeight: "bold", color: "#27372b" },
+  teamRole: { flex: 1, fontSize: 9, color: "#59655d" },
+  footerText: {
+    position: "absolute",
+    top: 814,
+    left: 44,
+    right: 44,
+    borderTopWidth: 1,
+    borderTopColor: "#dce4dd",
+    paddingTop: 6,
+    fontSize: 7.5,
+    color: "#657168",
+    textAlign: "center",
   },
-  projectTitle: { fontSize: 13, fontWeight: 'bold', color: '#074015', marginBottom: 3 },
-  projectSubtitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  projectRef: { fontSize: 7.5, color: '#718096' },
-  statusBadge: {
-    backgroundColor: '#e6f4ea', color: '#074015', fontSize: 7.5,
-    fontWeight: 'bold', paddingVertical: 2, paddingHorizontal: 5,
-    borderRadius: 3, textTransform: 'uppercase',
+  signatureSpacer: { flexGrow: 1, minHeight: 12 },
+  signatures: {
+    borderTopWidth: 1,
+    borderTopColor: "#cbd7cd",
+    paddingTop: 9,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: 62,
   },
-  section: { marginBottom: 9 },
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#074015',
-    paddingVertical: 3, paddingHorizontal: 6, borderRadius: 2, marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 8.5, fontWeight: 'bold', color: '#ffffff',
-    textTransform: 'uppercase', letterSpacing: 0.4,
-  },
-  sectionBody: { paddingHorizontal: 2 },
-  metaGrid: {
-    borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 3,
-    marginBottom: 9, overflow: 'hidden',
-  },
-  metaRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#edf2f7' },
-  metaRowLast: { flexDirection: 'row' },
-  metaCellLabel: {
-    width: '28%', backgroundColor: '#f8fafc', paddingVertical: 3.5,
-    paddingHorizontal: 7, fontSize: 8, fontWeight: 'bold', color: '#4a5568',
-    borderRightWidth: 1, borderRightColor: '#edf2f7',
-  },
-  metaCellValue: {
-    width: '72%', paddingVertical: 3.5, paddingHorizontal: 7,
-    fontSize: 8.5, color: '#1a202c',
-  },
-  paragraph: {
-    fontSize: 8.5, color: '#2d3748', lineHeight: 1.38,
-    textAlign: 'justify', marginBottom: 3,
-  },
-  teamTable: {
-    borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 3,
-    overflow: 'hidden', marginTop: 1,
-  },
-  teamTableHeader: {
-    flexDirection: 'row', backgroundColor: '#f1f5f9',
-    borderBottomWidth: 1, borderBottomColor: '#cbd5e1',
-    paddingVertical: 3, paddingHorizontal: 7,
-  },
-  teamTableRow: {
-    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
-    paddingVertical: 3, paddingHorizontal: 7,
-  },
-  teamColName: { width: '55%', fontSize: 8, fontWeight: 'bold', color: '#1a202c' },
-  teamColRole: { width: '45%', fontSize: 8, color: '#4a5568' },
-  signatureBox: {
-    marginTop: 10, paddingTop: 7, borderTopWidth: 1, borderTopColor: '#cbd5e1',
-    flexDirection: 'row', justifyContent: 'space-between',
-  },
-  signatureCol: { width: '45%', textAlign: 'center' },
-  signatureTitle: {
-    fontSize: 7.5, fontWeight: 'bold', color: '#4a5568',
-    marginBottom: 20, textTransform: 'uppercase',
-  },
-  signatureLine: { borderBottomWidth: 1, borderBottomColor: '#a0aec0', marginHorizontal: 15 },
-  truncationNote: {
-    fontSize: 7, color: '#a0aec0', fontStyle: 'italic',
-    textAlign: 'right', marginTop: 2, marginBottom: 4,
-  },
-  footer: {
-    position: 'absolute', bottom: 14, left: 38, right: 38,
-    borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 5,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    fontSize: 7, color: '#718096',
-  },
-  footerLeft: { flex: 1 },
-  footerRight: { textAlign: 'right' },
+  signatureColumn: { width: "44%", alignItems: "center" },
+  signatureLabel: { fontSize: 8.5, fontWeight: "bold", color: "#46554a", textAlign: "center", marginBottom: 27 },
+  signatureLine: { width: "84%", borderBottomWidth: 1, borderBottomColor: "#89968c" },
 });
 
 interface ProjectPDFProps {
@@ -153,19 +104,16 @@ interface ProjectPDFProps {
     impact: string | null;
     budget: number | null;
     created_at: string;
-    updated_at?: string;
     profiles?: {
       full_name?: string | null;
       email?: string | null;
       department?: string | null;
       student_id?: string | null;
-      is_verified?: boolean | null;
     } | {
       full_name?: string | null;
       email?: string | null;
       department?: string | null;
       student_id?: string | null;
-      is_verified?: boolean | null;
     }[];
   };
   teamMembers: { name: string; role_in_project: string }[];
@@ -174,211 +122,170 @@ interface ProjectPDFProps {
 const STATUS_LABELS: Record<string, string> = {
   draft: "Brouillon",
   submitted: "Soumis",
-  under_review: "En cours d'evaluation",
-  needs_revision: "A reviser",
-  validated: "Valide",
-  rejected: "Rejete",
+  admin_review: "Vérification administrative",
+  corrections_requested: "Corrections demandées",
+  under_review: "En examen",
+  jury_evaluation: "Évaluation du jury",
+  director_validation: "Validation de la direction",
+  accepted_for_presentation: "Accepté pour présentation",
+  scheduling: "Planification",
+  presentation_done: "Présentation effectuée",
+  final_decision: "Décision finale",
+  approved: "Approuvé",
+  rejected: "Refusé",
+  under_re_examination: "En réexamen",
+  postponed: "Reporté",
+  cancelled: "Annulé",
 };
+
+function Section({ number, title, children }: { number: number; title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader} wrap={false}>
+        <Text style={styles.sectionNumber}>{String(number).padStart(2, "0")}</Text>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.sectionRule} />
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow} wrap={false}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
 
 export function ProjectPDF({ project, teamMembers }: ProjectPDFProps) {
   const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
-  const statusFr = STATUS_LABELS[project.status] || project.status.toUpperCase();
-  const submissionDate = new Date(project.created_at).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'long', year: 'numeric',
+  const status = STATUS_LABELS[project.status] ?? project.status.replaceAll("_", " ");
+  const submissionDate = new Date(project.created_at).toLocaleDateString("fr-FR", {
+    day: "2-digit", month: "long", year: "numeric",
   });
 
-  const descText    = truncateWords(project.description, WORD_LIMITS.description);
-  const objText     = truncateWords(project.objectives,  WORD_LIMITS.objectives);
-  const problemText = truncateWords(project.problem,     WORD_LIMITS.problem);
-  const solutText   = truncateWords(project.solution,    WORD_LIMITS.solution);
-  const feasText    = truncateWords(project.feasibility, WORD_LIMITS.feasibility);
-  const impactText  = truncateWords(project.impact,      WORD_LIMITS.impact);
-
-  const anyTruncated =
-    wasTruncated(project.description, WORD_LIMITS.description) ||
-    wasTruncated(project.objectives,  WORD_LIMITS.objectives)  ||
-    wasTruncated(project.problem,     WORD_LIMITS.problem)     ||
-    wasTruncated(project.solution,    WORD_LIMITS.solution)    ||
-    wasTruncated(project.feasibility, WORD_LIMITS.feasibility) ||
-    wasTruncated(project.impact,      WORD_LIMITS.impact);
-
   return (
-    <Document title={`Fiche Projet - ${project.title}`} author="ESCAE-BENIN Innovation Hub">
+    <Document title={`Fiche projet - ${project.title}`} author="ESCAE-BÉNIN Innovation Hub" language="fr-FR">
       <Page size="A4" style={styles.page}>
-
-        <View style={styles.headerContainer}>
-          <Image src={LOGO_ESCAE_BASE64} style={styles.logoLeft} />
+        <View style={styles.runningHeader}>
+          <Image src={LOGO_ESCAE_BASE64} style={styles.logoEscae} />
           <View style={styles.headerCenter}>
-            <Text style={styles.institutionName}>ESCAE-BENIN</Text>
-            <Text style={styles.institutionSub}>ECOLE SUPERIEURE DE COMMERCE ET D'ADMINISTRATION DES ENTREPRISES</Text>
-            <Text style={styles.documentBadge}>INNOVATION HUB - FICHE DESCRIPTIVE DE PROJET</Text>
+            <Text style={styles.institutionName}>ESCAE-BÉNIN</Text>
+            <Text style={styles.institutionSub}>École Supérieure de Commerce et d’Administration des Entreprises</Text>
+            <Text style={styles.documentName}>Innovation Hub · Fiche descriptive de projet</Text>
           </View>
-          <Image src={LOGO_HUB_BASE64} style={styles.logoRight} />
+          <Image src={LOGO_HUB_BASE64} style={styles.logoHub} />
         </View>
 
-        <View style={styles.projectTitleBox}>
+        <View style={styles.titleBlock} wrap={false}>
+          <Text style={styles.eyebrow}>Dossier de projet étudiant</Text>
           <Text style={styles.projectTitle}>{project.title}</Text>
-          <View style={styles.projectSubtitleRow}>
-            <Text style={styles.projectRef}>
-              Ref. : HUB-{project.id.slice(0, 8).toUpperCase()} - Date de depot : {submissionDate}
-            </Text>
-            <Text style={styles.statusBadge}>Statut : {statusFr}</Text>
+          <View style={styles.projectMeta}>
+            <Text style={styles.reference}>Référence HUB-{project.id.slice(0, 8).toUpperCase()} · Déposé le {submissionDate}</Text>
+            <Text style={styles.status}>{status}</Text>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>1. Identification de l'Etudiant Porteur et Metadonnees</Text>
-          </View>
-          <View style={styles.metaGrid}>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaCellLabel}>Nom et Prenom(s) :</Text>
-              <Text style={styles.metaCellValue}>{owner?.full_name ?? 'Non specifie'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaCellLabel}>Matricule Etudiant :</Text>
-              <Text style={styles.metaCellValue}>{owner?.student_id ?? 'Non renseigne'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaCellLabel}>Filiere / Departement :</Text>
-              <Text style={styles.metaCellValue}>{owner?.department ?? 'Non renseigne'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaCellLabel}>Courriel officiel :</Text>
-              <Text style={styles.metaCellValue}>{owner?.email ?? 'Non renseigne'}</Text>
-            </View>
+        <Section number={1} title="Identification du porteur">
+          <View style={styles.infoList}>
+            <InfoRow label="Nom et prénom(s)" value={owner?.full_name ?? "Non renseigné"} />
+            <InfoRow label="Matricule étudiant" value={owner?.student_id ?? "Non renseigné"} />
+            <InfoRow label="Filière / département" value={owner?.department ?? "Non renseigné"} />
+            <InfoRow label="Adresse e-mail" value={owner?.email ?? "Non renseignée"} />
             {project.budget !== null && project.budget !== undefined && (
-              <View style={styles.metaRowLast}>
-                <Text style={styles.metaCellLabel}>Budget estimatif :</Text>
-                <Text style={styles.metaCellValue}>
-                  {Number(project.budget).toLocaleString('fr-FR')} FCFA
-                </Text>
-              </View>
+              <InfoRow label="Budget estimatif" value={`${Number(project.budget).toLocaleString("fr-FR").replace(/[\u202f\u00a0]/g, " ")} FCFA`} />
             )}
           </View>
-        </View>
+        </Section>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>2. Composition de l'Equipe</Text>
-          </View>
-          <View style={styles.teamTable}>
-            <View style={styles.teamTableHeader}>
-              <Text style={styles.teamColName}>Nom complet</Text>
-              <Text style={styles.teamColRole}>Role / Attribution dans le projet</Text>
-            </View>
-            <View style={styles.teamTableRow}>
-              <Text style={styles.teamColName}>{owner?.full_name ?? 'Etudiant porteur'}</Text>
-              <Text style={styles.teamColRole}>Porteur principal du projet (Lead)</Text>
+        <Section number={2} title="Composition de l’équipe">
+          <View style={styles.teamList}>
+            <View style={styles.teamRow} wrap={false}>
+              <Text style={styles.teamName}>{owner?.full_name ?? "Étudiant porteur"}</Text>
+              <Text style={styles.teamRole}>Porteur principal du projet</Text>
             </View>
             {teamMembers.map((member, index) => (
-              <View key={index} style={styles.teamTableRow}>
-                <Text style={styles.teamColName}>{member.name}</Text>
-                <Text style={styles.teamColRole}>{member.role_in_project}</Text>
+              <View key={`${member.name}-${index}`} style={styles.teamRow} wrap={false}>
+                <Text style={styles.teamName}>{member.name}</Text>
+                <Text style={styles.teamRole}>{member.role_in_project}</Text>
               </View>
             ))}
           </View>
-        </View>
+        </Section>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>3. Synthese et Description Generale</Text>
-          </View>
-          <View style={styles.sectionBody}>
-            <Text style={styles.paragraph}>{descText || 'Aucune description renseignee.'}</Text>
-          </View>
-        </View>
+        <Section number={3} title="Synthèse et description générale">
+          <Text style={styles.bodyText}>{project.description?.trim() || "Aucune description renseignée."}</Text>
+        </Section>
 
-        {objText ? (
+        {project.objectives?.trim() && (
+          <Section number={4} title="Objectifs visés">
+            <Text style={styles.bodyText}>{project.objectives.trim()}</Text>
+          </Section>
+        )}
+
+        {(project.problem?.trim() || project.solution?.trim()) && (
+          <Section number={5} title="Problématique et solution proposée">
+            {project.problem?.trim() && (
+              <>
+                <Text style={styles.subheading}>Problème identifié</Text>
+                <Text style={styles.bodyText}>{project.problem.trim()}</Text>
+              </>
+            )}
+            {project.solution?.trim() && (
+              <>
+                <Text style={styles.subheading}>Solution et proposition de valeur</Text>
+                <Text style={styles.bodyText}>{project.solution.trim()}</Text>
+              </>
+            )}
+          </Section>
+        )}
+
+        {(project.feasibility?.trim() || project.impact?.trim()) && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>4. Objectifs Vises</Text>
+            <View wrap={false}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionNumber}>06</Text>
+                <Text style={styles.sectionTitle}>Faisabilité et impact attendu</Text>
+                <View style={styles.sectionRule} />
+              </View>
+              {project.feasibility?.trim() ? (
+                <Text style={styles.subheading}>Faisabilité technique et opérationnelle</Text>
+              ) : project.impact?.trim() ? (
+                <Text style={styles.subheading}>Impact académique, économique et sociétal</Text>
+              ) : null}
             </View>
-            <View style={styles.sectionBody}>
-              <Text style={styles.paragraph}>{objText}</Text>
-            </View>
+            {project.feasibility?.trim() && (
+              <Text style={styles.bodyText}>{project.feasibility.trim()}</Text>
+            )}
+            {project.impact?.trim() && (
+              <>
+                {project.feasibility?.trim() && <Text style={styles.subheading}>Impact académique, économique et sociétal</Text>}
+                <Text style={styles.bodyText}>{project.impact.trim()}</Text>
+              </>
+            )}
           </View>
-        ) : null}
+        )}
 
-        {(problemText || solutText) ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>5. Problematique et Solution Proposee</Text>
-            </View>
-            <View style={styles.sectionBody}>
-              {problemText ? (
-                <>
-                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#074015', marginBottom: 2 }}>
-                    Probleme identifie :
-                  </Text>
-                  <Text style={styles.paragraph}>{problemText}</Text>
-                </>
-              ) : null}
-              {solutText ? (
-                <>
-                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#074015', marginTop: 3, marginBottom: 2 }}>
-                    Solution et proposition de valeur :
-                  </Text>
-                  <Text style={styles.paragraph}>{solutText}</Text>
-                </>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-
-        {(feasText || impactText) ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>6. Faisabilite et Impact Attendu</Text>
-            </View>
-            <View style={styles.sectionBody}>
-              {feasText ? (
-                <>
-                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#074015', marginBottom: 2 }}>
-                    Faisabilite technique et operationnelle :
-                  </Text>
-                  <Text style={styles.paragraph}>{feasText}</Text>
-                </>
-              ) : null}
-              {impactText ? (
-                <>
-                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#074015', marginTop: 3, marginBottom: 2 }}>
-                    Impact academique, economique et societal :
-                  </Text>
-                  <Text style={styles.paragraph}>{impactText}</Text>
-                </>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-
-        {anyTruncated ? (
-          <Text style={styles.truncationNote}>
-            * Certains contenus ont ete resumes pour respecter la limite d'espace du document. Le texte complet est disponible sur la plateforme.
-          </Text>
-        ) : null}
-
-        <View style={styles.signatureBox}>
-          <View style={styles.signatureCol}>
-            <Text style={styles.signatureTitle}>Signature du porteur de projet</Text>
+        <View style={styles.signatureSpacer} />
+        <View style={styles.signatures} wrap={false}>
+          <View style={styles.signatureColumn}>
+            <Text style={styles.signatureLabel}>Signature du porteur de projet</Text>
             <View style={styles.signatureLine} />
           </View>
-          <View style={styles.signatureCol}>
-            <Text style={styles.signatureTitle}>Visa du Jury / Comite ESCAE Hub</Text>
+          <View style={styles.signatureColumn}>
+            <Text style={styles.signatureLabel}>Visa du jury / comité ESCAE Hub</Text>
             <View style={styles.signatureLine} />
           </View>
         </View>
 
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerLeft}>
-            ESCAE-BENIN Innovation Hub - Plateforme academique officielle d'innovation
-          </Text>
-          <Text
-            style={styles.footerRight}
-            render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`}
-          />
-        </View>
-
+        <Text
+          fixed
+          style={styles.footerText}
+          render={({ pageNumber, totalPages }) => `ESCAE-BÉNIN Innovation Hub  |  Document institutionnel  |  Page ${pageNumber} / ${totalPages}`}
+        />
       </Page>
     </Document>
   );
