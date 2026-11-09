@@ -14,6 +14,7 @@ import type { ApiResponse } from "@/types";
 import { sendNotification } from "@/lib/notifications/send";
 import { getPublicAppUrl } from "@/lib/config/app-url";
 import { createHash, randomBytes } from "node:crypto";
+import nodemailer from "nodemailer";
 
 // ---------------------------------------------------------------------------
 // Schémas de validation
@@ -40,6 +41,59 @@ function createAppointmentToken() {
 
 function adminAccessCallbackUrl(appUrl: string) {
   return `${appUrl}/auth/callback?next=%2Fauth%2Fconfirmed`;
+}
+
+async function sendClickableAdminInvitationEmail(
+  adminClient: ReturnType<typeof createSupabaseAdminClient>,
+  email: string,
+  fullName: string,
+  appUrl: string,
+): Promise<{ error: Error | null }> {
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+    options: { redirectTo: adminAccessCallbackUrl(appUrl) },
+  });
+  if (error || !data?.properties.action_link) {
+    return { error: error ?? new Error("Supabase n'a pas généré le lien de connexion.") };
+  }
+
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT);
+  const username = process.env.SMTP_USER;
+  const password = process.env.SMTP_PASSWORD;
+  const from = process.env.SMTP_FROM || username;
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !username || !password || !from) {
+    return { error: new Error("Configuration SMTP absente.") };
+  }
+
+  const safeName = escapeEmailHtml(fullName || "Administrateur");
+  const safeLink = escapeEmailHtml(data.properties.action_link);
+  const transport = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user: username, pass: password },
+  });
+  try {
+    await transport.sendMail({
+      from,
+      to: email,
+      subject: "Confirmez votre accès administrateur — ESCAE Innovation Hub",
+      text: `Bonjour ${fullName || ""},\n\nLa direction vous a accordé un accès administrateur à ESCAE Innovation Hub. Cliquez sur ce lien sécurisé pour confirmer votre adresse et activer votre espace :\n${data.properties.action_link}\n\nCe lien est personnel et à usage unique. Si vous n'attendiez pas cette invitation, ignorez ce message.\n\nESCAE-BÉNIN — Innovation Hub`,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172018;max-width:600px;margin:auto"><h2 style="color:#087d22">Invitation administrateur</h2><p>Bonjour ${safeName},</p><p>La direction vous a accordé un accès administrateur à ESCAE Innovation Hub.</p><p style="margin:28px 0"><a href="${safeLink}" style="display:inline-block;background:#03a61c;color:#fff;padding:14px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Confirmer et accéder à mon espace</a></p><p>Ce lien est personnel et à usage unique. Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p><p style="word-break:break-all"><a href="${safeLink}">${safeLink}</a></p><p>Si vous n'attendiez pas cette invitation, ignorez ce message.</p><p style="color:#536156">ESCAE-BÉNIN — Innovation Hub</p></div>`,
+    });
+    return { error: null };
+  } catch (sendError) {
+    console.error("[admin invitation] E-mail cliquable non envoyé.");
+    return { error: sendError instanceof Error ? sendError : new Error("Échec d'envoi SMTP.") };
+  }
+}
+
+function escapeEmailHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character]!);
 }
 
 // ---------------------------------------------------------------------------
@@ -196,13 +250,12 @@ export async function nominateAdminAction(
     return { success: false, error: appointmentError?.message ?? "Échec de création du mandat." };
   }
 
-  const { error: emailError } = await adminClient.auth.signInWithOtp({
+  const { error: emailError } = await sendClickableAdminInvitationEmail(
+    adminClient,
     email,
-    options: {
-      emailRedirectTo: adminAccessCallbackUrl(appUrl),
-      shouldCreateUser: false,
-    },
-  });
+    fullName,
+    appUrl,
+  );
   if (emailError) {
     await supabase.rpc("finish_admin_appointment", {
       p_appointment_id: appointmentId,
@@ -324,10 +377,12 @@ export async function resendAdminInvitationAction(
   );
   if (issueError || issued !== true) return { success: false, error: "Impossible de renouveler cette invitation." };
 
-  const { error: emailError } = await adminClient.auth.signInWithOtp({
+  const { error: emailError } = await sendClickableAdminInvitationEmail(
+    adminClient,
     email,
-    options: { emailRedirectTo: adminAccessCallbackUrl(appUrl), shouldCreateUser: false },
-  });
+    authUser.user?.user_metadata?.full_name ?? "Administrateur",
+    appUrl,
+  );
   if (emailError) {
     await writeAuditLog({ actorId: user.id, action: "admin.invitation_resend_failed", targetId: appointment.id, targetType: "admin_appointment", details: { error: emailError.message } });
     return { success: false, error: "Le lien sécurisé n'a pas pu être envoyé par e-mail." };

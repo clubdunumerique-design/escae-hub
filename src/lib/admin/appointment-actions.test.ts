@@ -26,7 +26,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // vi.hoisted() garantit que ces objets sont initialisés AVANT le hoisting de vi.mock()
 // ---------------------------------------------------------------------------
 
-const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
+const { mockServerClient, mockAdminClient, mockSendMail } = vi.hoisted(() => {
+  const mockSendMail = vi.fn().mockResolvedValue({ messageId: "test-message" });
   const mockServerClient = {
     auth: {
       getUser: vi.fn(),
@@ -54,8 +55,14 @@ const { mockServerClient, mockAdminClient } = vi.hoisted(() => {
     from: vi.fn(),
   };
 
-  return { mockServerClient, mockAdminClient };
+  return { mockServerClient, mockAdminClient, mockSendMail };
 });
+
+vi.mock("nodemailer", () => ({
+  default: {
+    createTransport: vi.fn(() => ({ sendMail: mockSendMail })),
+  },
+}));
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn().mockResolvedValue(mockServerClient),
@@ -84,6 +91,11 @@ import {
 // ---------------------------------------------------------------------------
 
 function setupDirectorSession(directorId = "dir-001") {
+  vi.stubEnv("SMTP_HOST", "smtp.example.test");
+  vi.stubEnv("SMTP_PORT", "465");
+  vi.stubEnv("SMTP_USER", "hub@example.test");
+  vi.stubEnv("SMTP_PASSWORD", "test-password");
+  vi.stubEnv("SMTP_FROM", "ESCAE Hub <hub@example.test>");
   mockAdminClient.auth.admin.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
   mockAdminClient.auth.admin.createUser.mockResolvedValue({ data: { user: { id: "created-admin-001" } }, error: null });
   mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
@@ -231,10 +243,16 @@ describe("nominateAdminAction", () => {
       email_confirm: false,
       user_metadata: expect.objectContaining({ admin_setup_required: true }),
     }));
-    expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mockAdminClient.auth.admin.generateLink).toHaveBeenCalledWith(expect.objectContaining({
+      type: "magiclink",
       email: "jean.admin@example.com",
-      options: expect.objectContaining({ emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed"), shouldCreateUser: false }),
+      options: expect.objectContaining({ redirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed") }),
     }));
+    expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({
+      to: "jean.admin@example.com",
+      html: expect.stringContaining('href="https://auth.example.test/verify?token=one-time"'),
+    }));
+    expect(mockAdminClient.auth.signInWithOtp).not.toHaveBeenCalled();
   });
 
   it("envoie un lien de nomination par e-mail pour un compte déjà existant", async () => {
@@ -243,7 +261,7 @@ describe("nominateAdminAction", () => {
       data: { users: [{ id: "existing-002", email: "existing@example.com" }] },
       error: null,
     });
-    mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
+    mockAdminClient.auth.admin.generateLink.mockResolvedValue({ data: { properties: { action_link: "https://auth.example.test/verify?token=one-time" } }, error: null });
 
     let appointmentSelectCount = 0;
     mockAdminClient.from.mockImplementation((table: string) => {
@@ -295,11 +313,11 @@ describe("nominateAdminAction", () => {
     }));
 
     expect(result.success).toBe(true);
-    expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
+    expect(mockAdminClient.auth.admin.generateLink).toHaveBeenCalledWith({
+      type: "magiclink",
       email: "existing@example.com",
-      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed"), shouldCreateUser: false },
+      options: { redirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed") },
     });
-    expect(mockAdminClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
   });
 
   it("renvoie le lien de nomination par e-mail pour un mandat en attente", async () => {
@@ -308,7 +326,7 @@ describe("nominateAdminAction", () => {
       data: { user: { email: "existing@example.com" } },
       error: null,
     });
-    mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: null });
+    mockAdminClient.auth.admin.generateLink.mockResolvedValue({ data: { properties: { action_link: "https://auth.example.test/verify?token=one-time" } }, error: null });
     mockAdminClient.from.mockImplementation((table: string) => {
       if (table === "admin_appointments") {
         return {
@@ -341,9 +359,10 @@ describe("nominateAdminAction", () => {
     const result = await resendAdminInvitationAction(makeFormData({ appointmentId: "11111111-1111-4111-8111-111111111111" }));
 
     expect(result.success).toBe(true);
-    expect(mockAdminClient.auth.signInWithOtp).toHaveBeenCalledWith({
+    expect(mockAdminClient.auth.admin.generateLink).toHaveBeenCalledWith({
+      type: "magiclink",
       email: "existing@example.com",
-      options: { emailRedirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed"), shouldCreateUser: false },
+      options: { redirectTo: expect.stringContaining("/auth/callback?next=%2Fauth%2Fconfirmed") },
     });
   });
 
@@ -429,7 +448,7 @@ describe("nominateAdminAction", () => {
       error: null,
     });
 
-    mockAdminClient.auth.signInWithOtp.mockResolvedValue({ error: { message: "SMTP connection failed" } });
+    mockAdminClient.auth.admin.generateLink.mockResolvedValue({ data: null, error: { message: "Link generation failed" } });
 
     mockAdminClient.from.mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: null }),
