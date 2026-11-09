@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ApiResponse } from "@/types";
 import { z } from "zod";
 import { getPublicAppUrl } from "@/lib/config/app-url";
+import { ESCAE_ACADEMIC_LEVELS } from "@/config/academic-programs";
 
 const assistedStudentSchema = z.object({
   firstName: z.string().trim().min(2).max(60),
@@ -13,7 +14,56 @@ const assistedStudentSchema = z.object({
   universityId: z.string().uuid(),
   studentId: z.string().trim().toUpperCase().regex(/^ETU-\d{4}-\d{4}$/),
   department: z.string().trim().min(2).max(120),
+  academicLevel: z.enum(ESCAE_ACADEMIC_LEVELS),
 });
+
+/** Recherche une fiche de collecte par e-mail ou matricule, limitée aux universités accessibles. */
+export async function searchStudentMatriculeForAssistedAccountAction(
+  universityId: string,
+  search: string,
+): Promise<ApiResponse<Array<{
+  id: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email: string;
+  matricule: string;
+  field_of_study: string | null;
+  academic_level: string | null;
+  verification_status: string;
+}>>> {
+  const parsed = z.object({ universityId: z.string().uuid(), search: z.string().trim().min(3).max(254) }).safeParse({ universityId, search });
+  if (!parsed.success) return { success: false, error: "Saisissez un e-mail ou un matricule valide.", code: "VALIDATION_ERROR" };
+  const isEmailSearch = parsed.data.search.includes("@");
+  if (isEmailSearch ? !z.string().email().safeParse(parsed.data.search).success : !/^ETU-\d{4}-\d{4}$/i.test(parsed.data.search)) {
+    return { success: false, error: "Saisissez un e-mail complet ou un matricule au format ETU-AAAA-NNNN.", code: "VALIDATION_ERROR" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Connexion requise.", code: "UNAUTHORIZED" };
+  const { data: role, error: roleError } = await supabase.rpc("effective_user_role");
+  if (roleError || !["admin", "director"].includes(role ?? "")) {
+    return { success: false, error: "Action réservée au personnel administratif.", code: "FORBIDDEN" };
+  }
+  if (role === "admin") {
+    const { data: allowed, error } = await supabase.rpc("has_university_access", { p_university_id: parsed.data.universityId });
+    if (error || allowed !== true) return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
+  }
+
+  let query = supabase
+    .from("student_matricule_registry")
+    .select("id, first_name, last_name, full_name, email, matricule, field_of_study, academic_level, verification_status")
+    .eq("university_id", parsed.data.universityId);
+  if (isEmailSearch) {
+    query = query.eq("email", parsed.data.search.toLowerCase());
+  } else {
+    query = query.ilike("matricule", parsed.data.search.toUpperCase());
+  }
+  const { data, error } = await query.order("submitted_at", { ascending: false }).limit(8);
+  if (error) return { success: false, error: "Impossible de rechercher la fiche de matricule." };
+  return { success: true, data: data ?? [] };
+}
 
 /** Crée un compte étudiant et envoie un lien Supabase pour définir son mot de passe. */
 export async function createAssistedStudentAccountAction(
@@ -26,6 +76,7 @@ export async function createAssistedStudentAccountAction(
     universityId: formData.get("universityId"),
     studentId: formData.get("studentId"),
     department: formData.get("department"),
+    academicLevel: formData.get("academicLevel"),
   });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Vérifiez les champs saisis.", code: "VALIDATION_ERROR" };
@@ -112,6 +163,7 @@ export async function createAssistedStudentAccountAction(
       email: parsed.data.email,
       university_id: parsed.data.universityId,
       field_of_study: parsed.data.department,
+      academic_level: parsed.data.academicLevel,
       verification_status: "pending",
     });
     if (registryError) {

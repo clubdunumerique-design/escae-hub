@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ESCAE_PROGRAM_CATEGORIES } from "@/config/academic-programs";
 
 interface AcademicProgramFieldsProps {
@@ -8,6 +8,9 @@ interface AcademicProgramFieldsProps {
   disabled?: boolean;
   inputClassName: string;
   labelClassName: string;
+  programFieldName?: string;
+  initialProgram?: string;
+  onProgramChange?: (program: string) => void;
 }
 
 export function AcademicProgramFields({
@@ -15,10 +18,17 @@ export function AcademicProgramFields({
   disabled = false,
   inputClassName,
   labelClassName,
+  programFieldName = "fieldOfStudy",
+  initialProgram = "",
+  onProgramChange,
 }: AcademicProgramFieldsProps) {
-  const [categoryLabel, setCategoryLabel] = useState("");
-  const [selectedProgram, setSelectedProgram] = useState("");
+  const [categoryLabel, setCategoryLabel] = useState(() => ESCAE_PROGRAM_CATEGORIES.find((category) => category.programs.some((program) => program === initialProgram))?.label ?? "");
+  const [selectedProgram, setSelectedProgram] = useState(initialProgram);
   const [openList, setOpenList] = useState<"category" | "program" | null>(null);
+  useEffect(() => {
+    setSelectedProgram(initialProgram);
+    setCategoryLabel(ESCAE_PROGRAM_CATEGORIES.find((category) => category.programs.some((program) => program === initialProgram))?.label ?? "");
+  }, [initialProgram]);
   const selectedCategory = ESCAE_PROGRAM_CATEGORIES.find(
     (category) => category.label === categoryLabel,
   );
@@ -69,6 +79,7 @@ export function AcademicProgramFields({
                   onClick={() => {
                     setCategoryLabel(category.label);
                     setSelectedProgram("");
+                    onProgramChange?.("");
                     setOpenList(null);
                   }}
                   className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${selected ? "bg-[#03A61C]/15 text-[#8cf294]" : "text-white/75 hover:bg-white/5 hover:text-white"}`}
@@ -95,7 +106,7 @@ export function AcademicProgramFields({
         <label htmlFor={`${idPrefix}-program`} className={labelClassName}>
           Filière / spécialité
         </label>
-        <input type="hidden" name="fieldOfStudy" value={selectedProgram} />
+        <input type="hidden" name={programFieldName} value={selectedProgram} />
         <button
           type="button"
           id={`${idPrefix}-program`}
@@ -128,6 +139,7 @@ export function AcademicProgramFields({
                   aria-selected={selected}
                   onClick={() => {
                     setSelectedProgram(program);
+                    onProgramChange?.(program);
                     setOpenList(null);
                   }}
                   className={`w-full rounded-lg px-3 py-2.5 text-left text-sm leading-5 transition ${selected ? "bg-[#03A61C]/15 text-[#8cf294]" : "text-white/75 hover:bg-white/5 hover:text-white"}`}

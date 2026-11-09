@@ -47,3 +47,12 @@ export const ESCAE_PROGRAM_CATEGORIES = [
     ],
   },
 ] as const;
+
+export const ESCAE_ACADEMIC_LEVELS = [
+  "Licence 1 (L1)",
+  "Licence 2 (L2)",
+  "Licence 3 (L3)",
+  "Master 1 (M1)",
+  "Master 2 (M2)",
+  "Doctorat / Recherche",
+] as const;

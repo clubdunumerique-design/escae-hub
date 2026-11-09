@@ -38,7 +38,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   if (!user) redirect("/auth/login");
 
   // Vérification du rôle admin et chargement des projets en parallèle
-  const [profileRes, projectsRes] = await Promise.all([
+  const [profileRes, projectsRes, studentsRes] = await Promise.all([
     supabase
       .from("profiles")
       .select("role, full_name")
@@ -51,6 +51,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         profiles!owner_id ( full_name, email, department, university_id, universities!profiles_university_id_fkey (name) )
       `)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("profiles")
+      .select("university_id, is_verified")
+      .eq("role", "student"),
   ]);
 
   const profile = profileRes.data;
@@ -70,6 +74,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
     return owner?.university_id === selectedUniversity;
   });
+  const students = (studentsRes.data ?? []).filter((student) =>
+    student.university_id &&
+    accessibleUniversities.some((university) => university.id === student.university_id) &&
+    (selectedUniversity === "all" || student.university_id === selectedUniversity),
+  );
+  const registrationCounts = accessibleUniversities
+    .filter((university) => selectedUniversity === "all" || university.id === selectedUniversity)
+    .map((university) => {
+      const universityStudents = students.filter((student) => student.university_id === university.id);
+      return {
+        ...university,
+        total: universityStudents.length,
+        verified: universityStudents.filter((student) => student.is_verified).length,
+        pending: universityStudents.filter((student) => !student.is_verified).length,
+      };
+    });
 
   // Compteurs par statut
   const counts = {
@@ -152,6 +172,37 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </div>
         ))}
       </div>
+
+      <section className="mb-8 rounded-xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-white">Inscriptions étudiantes par université</h2>
+          <p className="mt-1 text-sm text-white/45">Comptes étudiants créés, matricules rapprochés et vérifications en attente.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {registrationCounts.map((university) => (
+            <article key={university.id} className="rounded-lg border border-white/10 bg-black/20 p-4">
+              <h3 className="font-semibold text-sky-200">{university.name}</h3>
+              <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-2xl font-extrabold text-white">{university.total}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-wide text-white/40">Inscrits</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-extrabold text-[#05F228]">{university.verified}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-wide text-white/40">Matricules vérifiés</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-extrabold text-amber-400">{university.pending}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-wide text-white/40">À vérifier</p>
+                </div>
+              </div>
+            </article>
+          ))}
+          {registrationCounts.length === 0 && (
+            <p className="text-sm text-white/45">Aucune université accessible pour afficher les inscriptions.</p>
+          )}
+        </div>
+      </section>
 
       {/* Tableau des projets */}
       <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
