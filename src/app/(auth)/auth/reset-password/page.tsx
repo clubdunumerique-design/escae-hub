@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ResetPasswordForm } from "@/components/forms/ResetPasswordForm";
 
 export const metadata: Metadata = { title: "Réinitialiser le mot de passe" };
@@ -22,7 +23,9 @@ export default function ResetPasswordPage() {
 
       {/* Formulaire */}
       <div className="px-8 py-6">
-        <ResetPasswordForm />
+        <Suspense fallback={<div className="py-3 text-center text-sm text-white/40">Chargement…</div>}>
+          <ResetPasswordForm />
+        </Suspense>
         <div className="mt-6 text-center text-sm text-white/30">
           <Link href="/auth/login" className="font-semibold text-[#05F228] hover:underline">
             ← Retour à la connexion

@@ -48,7 +48,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       .from("projects")
       .select(`
         id, title, status, created_at, updated_at,
-        profiles!owner_id ( full_name, email, department, university_id )
+        profiles!owner_id ( full_name, email, department, university_id, universities!profiles_university_id_fkey (name) )
       `)
       .order("created_at", { ascending: false }),
   ]);
@@ -159,15 +159,25 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <h2 className="font-semibold text-white">Tous les projets</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1250px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[210px]" />
+              <col className="w-[205px]" />
+              <col className="w-[205px]" />
+              <col className="w-[205px]" />
+              <col className="w-[145px]" />
+              <col className="w-[135px]" />
+              <col className="w-[130px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-white/10 text-left text-xs font-medium uppercase tracking-wider text-white/30">
-                <th className="px-6 py-3">Projet</th>
-                <th className="px-6 py-3">Étudiant</th>
-                <th className="px-6 py-3">Département</th>
-                <th className="px-6 py-3">Statut</th>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Action</th>
+                <th className="whitespace-nowrap px-5 py-3">Projet</th>
+                <th className="whitespace-nowrap px-5 py-3">Étudiant</th>
+                <th className="whitespace-nowrap px-5 py-3">Université</th>
+                <th className="whitespace-nowrap px-5 py-3">Département</th>
+                <th className="whitespace-nowrap px-5 py-3">Statut</th>
+                <th className="whitespace-nowrap px-5 py-3">Date</th>
+                <th className="whitespace-nowrap px-5 py-3">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -176,29 +186,35 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   const owner = Array.isArray(project.profiles)
                     ? project.profiles[0]
                     : project.profiles;
+                  const university = Array.isArray(owner?.universities)
+                    ? owner.universities[0]
+                    : owner?.universities;
                   return (
                     <tr key={project.id} className="transition-colors hover:bg-white/5">
-                      <td className="max-w-[200px] truncate px-6 py-4 font-medium text-white">
+                      <td className="truncate px-5 py-4 font-medium text-white">
                         {project.title}
                       </td>
-                      <td className="px-6 py-4 text-white/60">
+                      <td className="break-words px-5 py-4 text-white/60">
                         {owner?.full_name ?? "—"}
                       </td>
-                      <td className="px-6 py-4 text-white/40">
+                      <td className="break-words px-5 py-4 text-sky-200/80">
+                        {university?.name ?? "Non renseignée"}
+                      </td>
+                      <td className="break-words px-5 py-4 text-white/40">
                         {owner?.department ?? "—"}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="whitespace-nowrap px-5 py-4">
                         <Badge variant={STATUS_VARIANT[project.status] ?? "neutral"}>
                           {STATUS_LABELS[project.status] ?? project.status}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-white/40">
+                      <td className="whitespace-nowrap px-5 py-4 text-white/40">
                         {new Date(project.created_at).toLocaleDateString("fr-FR")}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="whitespace-nowrap px-5 py-4">
                         <Link
                           href={`/admin/projects/${project.id}`}
-                          className="rounded-lg bg-[#03A61C]/20 px-3 py-1.5 text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/40"
+                          className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-[#03A61C]/20 px-3 py-2 text-xs font-semibold text-[#05F228] transition-all hover:bg-[#03A61C]/40"
                         >
                           Gérer →
                         </Link>
@@ -208,7 +224,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-white/30">
+                  <td colSpan={7} className="px-6 py-12 text-center text-white/30">
                     Aucun projet soumis pour le moment.
                   </td>
                 </tr>

@@ -7,6 +7,7 @@ import { AdminActionPanel } from "@/components/admin/AdminActionPanel";
 export const dynamic = "force-dynamic";
 import { DownloadPdfButton } from "@/components/pdf/DownloadPdfButton";
 import type { ProjectStatus } from "@/types";
+import { ProjectConversation } from "@/components/projects/ProjectConversation";
 
 // ── Labels et variantes de statuts ───────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
@@ -77,7 +78,7 @@ export default async function AdminProjectDetailPage({
     .from("projects")
     .select(`
       id, title, description, objectives, problem, solution, feasibility, impact, budget, status, created_at, updated_at,
-      profiles!owner_id (id, full_name, email, department, student_id, is_verified)
+      profiles!owner_id (id, full_name, email, department, student_id, is_verified, university_id, universities!profiles_university_id_fkey (name))
     `)
     .eq("id", id)
     .single();
@@ -133,8 +134,15 @@ export default async function AdminProjectDetailPage({
     .eq("project_id", id)
     .single();
 
+  const { data: projectMessages } = await supabase
+    .from("project_messages")
+    .select("id, author_id, author_name, body, created_at")
+    .eq("project_id", id)
+    .order("created_at", { ascending: true });
+
   // Normalisation du join Supabase (peut retourner tableau ou objet)
   const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
+  const university = Array.isArray(owner?.universities) ? owner.universities[0] : owner?.universities;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -154,6 +162,11 @@ export default async function AdminProjectDetailPage({
             Dossier projet
           </p>
           <h1 className="mt-1 text-3xl font-extrabold text-white">{project.title}</h1>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#03A61C]/30 bg-[#03A61C]/10 px-3 py-2 text-sm text-white/80">
+            <span aria-hidden="true" className="text-[#79F281]">●</span>
+            <span className="text-white/50">Université de rattachement</span>
+            <span className="font-semibold text-[#b8f5bf]">{university?.name ?? "Non renseignée"}</span>
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Badge variant={STATUS_VARIANT[project.status] ?? "neutral"}>
               {STATUS_LABELS[project.status] ?? project.status}
@@ -390,6 +403,10 @@ export default async function AdminProjectDetailPage({
                   <span className="text-white/40">N° étudiant</span>
                   <span className="text-white/70">{owner?.student_id ?? "Non renseigné"}</span>
                 </div>
+                <div className="flex justify-between gap-3 text-xs">
+                  <span className="shrink-0 text-white/40">Université</span>
+                  <span className="text-right font-semibold text-[#b8f5bf]">{university?.name ?? "Non renseignée"}</span>
+                </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-white/40">Matricule rapproché</span>
                   <span>
@@ -563,6 +580,9 @@ export default async function AdminProjectDetailPage({
             userRole={effectiveRole ?? "student"}
           />
         </div>
+      </div>
+      <div className="mt-6">
+        <ProjectConversation projectId={project.id} userId={user.id} messages={projectMessages ?? []} />
       </div>
     </div>
   );

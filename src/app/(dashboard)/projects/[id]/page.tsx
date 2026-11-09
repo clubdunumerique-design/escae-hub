@@ -10,6 +10,7 @@ import { SubmitProjectButton } from "@/components/forms/SubmitProjectButton";
 import { DocumentUploadForm } from "@/components/forms/DocumentUploadForm";
 import { RemoveDocumentButton } from "@/components/forms/RemoveDocumentButton";
 import { DownloadPdfButton } from "@/components/pdf/DownloadPdfButton";
+import { ProjectConversation } from "@/components/projects/ProjectConversation";
 
 export default async function ProjectDetailsPage({
   params,
@@ -27,7 +28,7 @@ export default async function ProjectDetailsPage({
     .from("projects")
     .select(`
       *,
-      profiles!owner_id (id, full_name, email, department, student_id, is_verified)
+      profiles!owner_id (id, full_name, email, department, student_id, is_verified, university_id, universities!profiles_university_id_fkey (name))
     `)
     .eq("id", id)
     .single();
@@ -36,7 +37,7 @@ export default async function ProjectDetailsPage({
     notFound();
   }
 
-  const [teamRes, docsRes, presRes] = await Promise.all([
+  const [teamRes, docsRes, presRes, messagesRes] = await Promise.all([
     supabase
       .from("team_members")
       .select("name, role_in_project")
@@ -50,11 +51,17 @@ export default async function ProjectDetailsPage({
       .select("scheduled_date, scheduled_time, room, notes")
       .eq("project_id", project.id)
       .maybeSingle(),
+    supabase
+      .from("project_messages")
+      .select("id, author_id, author_name, body, created_at")
+      .eq("project_id", project.id)
+      .order("created_at", { ascending: true }),
   ]);
 
   const teamMembers = teamRes.data;
   const documents = docsRes.data;
   const presentation = presRes.data;
+  const projectMessages = messagesRes.data ?? [];
 
   const isOwner = project.owner_id === user.id;
   const isDraft = project.status === "draft";
@@ -294,6 +301,9 @@ export default async function ProjectDetailsPage({
             </CardBody>
           </Card>
         </div>
+      </div>
+      <div className="mt-6">
+        <ProjectConversation projectId={project.id} userId={user.id} messages={projectMessages} />
       </div>
     </div>
   );

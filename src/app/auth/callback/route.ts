@@ -128,9 +128,13 @@ export async function GET(request: NextRequest) {
         if (!profileError && profile?.role) {
           const { data: effectiveRole } = await supabase.rpc("effective_user_role");
           const accessRole = resolveAccessRole(profile.role, effectiveRole);
+          const isAssistedStudentSetup =
+            profile.role === "student" && next === "/auth/reset-password?setup=1";
           const destination = adminInvitationAccepted
             ? "/admin"
-            : accessRoleHome(accessRole);
+            : isAssistedStudentSetup
+              ? next
+              : accessRoleHome(accessRole);
 
           // Conserver la même réponse qui a reçu les cookies Supabase, sans en perdre les options.
           response.headers.set("Location", new URL(destination, origin).toString());

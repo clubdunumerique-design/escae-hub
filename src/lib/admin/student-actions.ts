@@ -3,6 +3,134 @@
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { ApiResponse } from "@/types";
+import { z } from "zod";
+import { getPublicAppUrl } from "@/lib/config/app-url";
+
+const assistedStudentSchema = z.object({
+  firstName: z.string().trim().min(2).max(60),
+  lastName: z.string().trim().min(2).max(60),
+  email: z.string().trim().email().toLowerCase(),
+  universityId: z.string().uuid(),
+  studentId: z.string().trim().toUpperCase().regex(/^ETU-\d{4}-\d{4}$/),
+  department: z.string().trim().min(2).max(120),
+});
+
+/** Crée un compte étudiant et envoie un lien Supabase pour définir son mot de passe. */
+export async function createAssistedStudentAccountAction(
+  formData: FormData,
+): Promise<ApiResponse<{ id: string }>> {
+  const parsed = assistedStudentSchema.safeParse({
+    firstName: formData.get("firstName"),
+    lastName: formData.get("lastName"),
+    email: formData.get("email"),
+    universityId: formData.get("universityId"),
+    studentId: formData.get("studentId"),
+    department: formData.get("department"),
+  });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Vérifiez les champs saisis.", code: "VALIDATION_ERROR" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: { user: actor } } = await supabase.auth.getUser();
+  if (!actor) return { success: false, error: "Connexion requise.", code: "UNAUTHORIZED" };
+  const { data: role, error: roleError } = await supabase.rpc("effective_user_role");
+  if (roleError || !["admin", "director"].includes(role ?? "")) {
+    return { success: false, error: "Seuls les administrateurs peuvent créer un compte étudiant.", code: "FORBIDDEN" };
+  }
+  if (role === "admin") {
+    const { data: allowed, error } = await supabase.rpc("has_university_access", {
+      p_university_id: parsed.data.universityId,
+    });
+    if (error || allowed !== true) {
+      return { success: false, error: "Vous n'avez pas accès à cette université.", code: "FORBIDDEN" };
+    }
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const [{ data: university }, { data: existingProfiles }, { data: registryEntries }] = await Promise.all([
+    adminClient.from("universities").select("id").eq("id", parsed.data.universityId).eq("is_active", true).maybeSingle(),
+    adminClient.from("profiles").select("id, student_id").eq("university_id", parsed.data.universityId),
+    adminClient.from("student_matricule_registry").select("matricule, claimed_by_user_id, email, full_name").eq("university_id", parsed.data.universityId),
+  ]);
+  if (!university) return { success: false, error: "Sélectionnez une université active.", code: "VALIDATION_ERROR" };
+  const normalizedMatricule = parsed.data.studentId.replace(/\s+/g, "").toUpperCase();
+  if (existingProfiles?.some((profile) => profile.student_id?.replace(/\s+/g, "").toUpperCase() === normalizedMatricule)) {
+    return { success: false, error: "Ce matricule est déjà associé à un compte dans cette université.", code: "ALREADY_EXISTS" };
+  }
+  const existingRegistry = registryEntries?.find((entry) => entry.matricule.replace(/\s+/g, "").toUpperCase() === normalizedMatricule);
+  if (existingRegistry?.claimed_by_user_id) {
+    return { success: false, error: "Cette fiche de matricule est déjà associée à un compte.", code: "ALREADY_EXISTS" };
+  }
+
+  const fullName = `${parsed.data.firstName} ${parsed.data.lastName}`;
+  if (existingRegistry && (
+    existingRegistry.email.trim().toLowerCase() !== parsed.data.email ||
+    existingRegistry.full_name.normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase() !== fullName.normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase()
+  )) {
+    return { success: false, error: "Une fiche existe déjà pour ce matricule avec des informations différentes. Corrigez d'abord la fiche dans le registre.", code: "IDENTITY_MISMATCH" };
+  }
+
+  const appUrl = getPublicAppUrl();
+  if (!appUrl) return { success: false, error: "L'adresse publique du site n'est pas configurée.", code: "CONFIG_ERROR" };
+
+  const redirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent("/auth/reset-password?setup=1")}`;
+  const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(parsed.data.email, {
+    data: {
+      full_name: fullName,
+      student_id: normalizedMatricule,
+      university_id: parsed.data.universityId,
+      department: parsed.data.department,
+    },
+    redirectTo,
+  });
+  if (inviteError || !invited.user) {
+    return { success: false, error: inviteError?.message.toLowerCase().includes("already")
+      ? "Un compte existe déjà avec cet e-mail. L'étudiant peut utiliser « Mot de passe oublié » pour le retrouver."
+      : "Impossible de créer le compte ou d'envoyer l'e-mail. Vérifiez la configuration des e-mails Supabase.", code: "INVITATION_FAILED" };
+  }
+
+  const { error: profileError } = await adminClient.from("profiles").update({
+    full_name: fullName,
+    student_id: normalizedMatricule,
+    department: parsed.data.department,
+    university_id: parsed.data.universityId,
+    is_verified: false,
+  }).eq("id", invited.user.id);
+  if (profileError) {
+    await adminClient.auth.admin.deleteUser(invited.user.id);
+    return { success: false, error: "Le profil étudiant n'a pas pu être initialisé. Aucun compte incomplet n'a été conservé.", code: "PROFILE_CREATION_FAILED" };
+  }
+
+  // Une fiche existante est conservée; une nouvelle fiche reste pending et ne certifie pas le compte.
+  if (!existingRegistry) {
+    const { error: registryError } = await adminClient.from("student_matricule_registry").insert({
+      first_name: parsed.data.firstName,
+      last_name: parsed.data.lastName,
+      full_name: fullName,
+      matricule: normalizedMatricule,
+      email: parsed.data.email,
+      university_id: parsed.data.universityId,
+      field_of_study: parsed.data.department,
+      verification_status: "pending",
+    });
+    if (registryError) {
+      await adminClient.auth.admin.deleteUser(invited.user.id);
+      return { success: false, error: "La fiche de matricule n'a pas pu être créée. Vérifiez qu'elle n'existe pas déjà.", code: "REGISTRY_CREATION_FAILED" };
+    }
+  }
+
+  await adminClient.from("audit_logs").insert({
+    actor_id: actor.id,
+    action: "student.assisted_account_invited",
+    target_id: invited.user.id,
+    target_type: "profile",
+    details: { university_id: parsed.data.universityId },
+  });
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/matricules");
+  return { success: true, data: { id: invited.user.id } };
+}
 
 /**
  * Verifie ou de-verifie un compte etudiant.

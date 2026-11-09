@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { resetPasswordAction } from "@/app/(auth)/actions";
 
 export function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isAccountSetup = searchParams.get("setup") === "1";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,7 +35,7 @@ export function ResetPasswordForm() {
     try {
       const response = await resetPasswordAction(formData);
       if (response.success) {
-        router.push("/auth/login?reset=success");
+        router.push(isAccountSetup ? "/dashboard" : "/auth/login?reset=success");
       } else {
         setError(response.error ?? "Une erreur est survenue.");
       }
@@ -86,7 +88,7 @@ export function ResetPasswordForm() {
         disabled={isLoading}
         className="relative mt-2 w-full overflow-hidden rounded-lg bg-[#03A61C] py-3 text-sm font-bold text-white shadow-[0_0_20px_rgba(3,166,28,0.4)] transition-all hover:bg-[#05F228] hover:shadow-[0_0_30px_rgba(5,242,40,0.5)] disabled:opacity-60"
       >
-        {isLoading ? "Réinitialisation..." : "Changer le mot de passe"}
+        {isLoading ? "Réinitialisation..." : isAccountSetup ? "Définir mon mot de passe" : "Changer le mot de passe"}
       </button>
     </form>
   );

@@ -52,7 +52,7 @@ export default async function EvaluateProjectPage({
     .select(`
       id, title, description, objectives, problem, solution,
       feasibility, impact, budget, status,
-      profiles!owner_id (full_name, email, department)
+      profiles!owner_id (full_name, email, department, university_id, universities!profiles_university_id_fkey (name))
     `)
     .eq("id", id)
     .single();
@@ -96,6 +96,7 @@ export default async function EvaluateProjectPage({
       : null;
 
   const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
+  const university = Array.isArray(owner?.universities) ? owner.universities[0] : owner?.universities;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -117,6 +118,10 @@ export default async function EvaluateProjectPage({
             Module d'évaluation jury
           </p>
           <h1 className="mt-1 text-3xl font-extrabold text-white">{project.title}</h1>
+          <p className="mt-2 inline-flex items-center gap-2 rounded-md border border-[#03A61C]/25 bg-[#03A61C]/10 px-3 py-1.5 text-sm text-[#b8f5bf]">
+            <span aria-hidden="true">●</span>
+            Université : <strong>{university?.name ?? "Non renseignée"}</strong>
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Badge variant={STATUS_VARIANT[project.status] ?? "neutral"}>
               {STATUS_LABELS[project.status] ?? project.status}

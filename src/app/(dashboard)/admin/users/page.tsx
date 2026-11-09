@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { verifyStudentAction } from "@/lib/admin/student-actions";
+import { CreateStudentAccountForm } from "@/components/admin/CreateStudentAccountForm";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -84,6 +85,8 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
         </label>
         <button className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white">Filtrer</button>
       </form>
+
+      <CreateStudentAccountForm universities={accessibleUniversities} />
 
       {/* ── Statistiques ── */}
       <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
