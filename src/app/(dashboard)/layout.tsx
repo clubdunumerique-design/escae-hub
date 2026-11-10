@@ -119,7 +119,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen bg-[#0D0D0D] text-white">
       {/* ── SIDEBAR DESKTOP (caché sur mobile, affiché à partir de md) ── */}
-      <aside className="sticky top-0 hidden h-screen w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D] md:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden h-screen w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D] md:flex">
         {/* Logo */}
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
           <Link href="/dashboard" prefetch={true} className="flex items-center gap-2 transition-opacity hover:opacity-80">
@@ -206,7 +206,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </aside>
 
       {/* ── CONTENU PRINCIPAL ── */}
-      <div className="flex flex-1 flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col md:ml-64">
         {/* Header responsive avec menu burger et notifications */}
         <DashboardHeader
           userEmail={user.email || ""}
