@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveAccessRole } from "@/lib/auth/resolve-access-role";
-import { logoutAction } from "@/app/(auth)/actions";
+import { LogoutForm } from "@/components/layout/LogoutForm";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +34,7 @@ export default async function AdminAccessPendingPage() {
           <a href="/auth/login" className="inline-flex rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15">
             Retour à la connexion
           </a>
-          <form action={logoutAction}>
-            <button type="submit" className="inline-flex rounded-lg border border-white/10 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/5">
-              Se déconnecter
-            </button>
-          </form>
+          <LogoutForm label="Se déconnecter" className="inline-flex rounded-lg border border-white/10 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/5" />
         </div>
       </section>
     </main>

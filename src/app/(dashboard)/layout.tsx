@@ -4,8 +4,8 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveAccessRole } from "@/lib/auth/resolve-access-role";
 import { redirect } from "next/navigation";
-import { logoutAction } from "@/app/(auth)/actions";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
+import { LogoutForm } from "@/components/layout/LogoutForm";
 
 export const metadata: Metadata = {
   title: "Tableau de bord — ESCAE Innovation Hub",
@@ -119,7 +119,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen bg-[#0D0D0D] text-white">
       {/* ── SIDEBAR DESKTOP (caché sur mobile, affiché à partir de md) ── */}
-      <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D] md:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0D0D0D] md:flex">
         {/* Logo */}
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
           <Link href="/dashboard" prefetch={true} className="flex items-center gap-2 transition-opacity hover:opacity-80">
@@ -152,7 +152,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
 
         {/* Navigation étudiant */}
-        <nav className="flex-1 px-3 py-4" aria-label="Navigation principale">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="Navigation principale">
           {/* Section étudiant uniquement si applicable */}
           {studentNavItems.length > 0 && (
             <>
@@ -196,17 +196,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
         {/* Déconnexion */}
         <div className="border-t border-white/10 px-3 py-4">
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/40 transition-all hover:bg-red-500/10 hover:text-red-400"
-            >
+          <LogoutForm className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/40 transition-all hover:bg-red-500/10 hover:text-red-400">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
               Déconnexion
-            </button>
-          </form>
+          </LogoutForm>
         </div>
       </aside>
 

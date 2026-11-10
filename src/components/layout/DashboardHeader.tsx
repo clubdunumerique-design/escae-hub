@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { logoutAction } from "@/app/(auth)/actions";
+import { LogoutForm } from "@/components/layout/LogoutForm";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
@@ -202,17 +202,12 @@ export function DashboardHeader({
 
             {/* Bouton déconnexion en bas */}
             <div className="border-t border-white/10 p-4">
-              <form action={logoutAction}>
-                <button
-                  type="submit"
-                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-400 transition-all hover:bg-red-500/20"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <LogoutForm className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-400 transition-all hover:bg-red-500/20">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                   Déconnexion
-                </button>
-              </form>
+              </LogoutForm>
             </div>
           </aside>
         </div>
