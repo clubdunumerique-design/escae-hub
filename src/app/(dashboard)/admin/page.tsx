@@ -37,67 +37,72 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // Vérification du rôle admin et chargement des projets en parallèle
-  const [profileRes, projectsRes, studentsRes] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("role, full_name")
-      .eq("id", user.id)
-      .single(),
-    supabase
-      .from("projects")
-      .select(`
-        id, title, status, created_at, updated_at,
-        profiles!owner_id ( full_name, email, department, university_id, universities!profiles_university_id_fkey (name) )
-      `)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("profiles")
-      .select("university_id, is_verified")
-      .eq("role", "student"),
+  const [profileRes, roleRes, universityRes] = await Promise.all([
+    supabase.from("profiles").select("role, full_name").eq("id", user.id).single(),
+    supabase.rpc("effective_user_role"),
+    supabase.from("universities").select("id, name").eq("is_active", true).order("name"),
   ]);
-
   const profile = profileRes.data;
-  const { data: effectiveRole } = await supabase.rpc("effective_user_role");
+  const effectiveRole = roleRes.data;
   const isAdmin = effectiveRole === "admin" || effectiveRole === "director";
   if (!isAdmin) redirect("/dashboard");
 
-  const { data: universityData } = await supabase.from("universities").select("id, name").eq("is_active", true).order("name");
-  const universityRows = universityData ?? [];
+  const universityRows = universityRes.data ?? [];
   const accessibleUniversities: typeof universityRows = effectiveRole === "director" ? universityRows : (await Promise.all(universityRows.map(async (university) => {
     const { data } = await supabase.rpc("has_university_access", { p_university_id: university.id });
     return data === true ? university : null;
   }))).filter((university): university is NonNullable<typeof university> => university !== null);
   const selectedUniversity = params.university === "all" ? "all" : accessibleUniversities.some((u) => u.id === params.university) ? params.university : "all";
-  const projects = (projectsRes.data ?? []).filter((project) => {
-    if (selectedUniversity === "all") return true;
-    const owner = Array.isArray(project.profiles) ? project.profiles[0] : project.profiles;
-    return owner?.university_id === selectedUniversity;
-  });
-  const students = (studentsRes.data ?? []).filter((student) =>
-    student.university_id &&
-    accessibleUniversities.some((university) => university.id === student.university_id) &&
-    (selectedUniversity === "all" || student.university_id === selectedUniversity),
-  );
+  const scopedProjectCount = (statuses?: string[]) => {
+    // Embed the owner relation so PostgREST can safely apply the university filter.
+    let query = supabase
+      .from("projects")
+      .select("id, profiles!owner_id!inner(university_id)", { count: "exact", head: true });
+    if (selectedUniversity !== "all") {
+      query = query.eq("profiles.university_id", selectedUniversity);
+    }
+    if (statuses) query = query.in("status", statuses);
+    return query;
+  };
+
+  const [projectsRes, totalProjectsRes, submissionsRes, juryRes, directionRes, acceptedRes, ...studentCountResults] = await Promise.all([
+    (() => {
+      let query = supabase.from("projects").select(`
+        id, title, status, created_at, updated_at,
+        profiles!owner_id!inner ( full_name, email, department, university_id, universities!profiles_university_id_fkey (name) )
+      `).order("created_at", { ascending: false }).limit(50);
+      if (selectedUniversity !== "all") query = query.eq("profiles.university_id", selectedUniversity);
+      return query;
+    })(),
+    scopedProjectCount(),
+    scopedProjectCount(["submitted", "admin_review"]),
+    scopedProjectCount(["under_review", "jury_evaluation"]),
+    scopedProjectCount(["director_validation"]),
+    scopedProjectCount(["accepted_for_presentation", "scheduling", "approved"]),
+    ...accessibleUniversities
+      .filter((university) => selectedUniversity === "all" || university.id === selectedUniversity)
+      .flatMap((university) => [
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student").eq("university_id", university.id),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student").eq("university_id", university.id).eq("is_verified", true),
+      ]),
+  ]);
+  const projects = projectsRes.data ?? [];
   const registrationCounts = accessibleUniversities
     .filter((university) => selectedUniversity === "all" || university.id === selectedUniversity)
-    .map((university) => {
-      const universityStudents = students.filter((student) => student.university_id === university.id);
-      return {
-        ...university,
-        total: universityStudents.length,
-        verified: universityStudents.filter((student) => student.is_verified).length,
-        pending: universityStudents.filter((student) => !student.is_verified).length,
-      };
+    .map((university, index) => {
+      const totalResult = studentCountResults[index * 2];
+      const verifiedResult = studentCountResults[index * 2 + 1];
+      const total = totalResult?.count ?? 0;
+      const verified = verifiedResult?.count ?? 0;
+      return { ...university, total, verified, pending: total - verified };
     });
 
-  // Compteurs par statut
   const counts = {
-    total: projects?.length ?? 0,
-    new_submissions: projects?.filter((p) => p.status === "submitted" || p.status === "admin_review").length ?? 0,
-    jury: projects?.filter((p) => p.status === "under_review" || p.status === "jury_evaluation").length ?? 0,
-    direction: projects?.filter((p) => p.status === "director_validation").length ?? 0,
-    accepted: projects?.filter((p) => p.status === "accepted_for_presentation" || p.status === "scheduling" || p.status === "approved").length ?? 0,
+    total: totalProjectsRes.count ?? 0,
+    new_submissions: submissionsRes.count ?? 0,
+    jury: juryRes.count ?? 0,
+    direction: directionRes.count ?? 0,
+    accepted: acceptedRes.count ?? 0,
   };
 
   return (
@@ -207,7 +212,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {/* Tableau des projets */}
       <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
         <div className="border-b border-white/10 px-6 py-4">
-          <h2 className="font-semibold text-white">Tous les projets</h2>
+          <h2 className="font-semibold text-white">Projets récents (50 derniers)</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1250px] table-fixed text-sm">
@@ -232,7 +237,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {projects && projects.length > 0 ? (
+              {projects.length > 0 ? (
                 projects.map((project) => {
                   const owner = Array.isArray(project.profiles)
                     ? project.profiles[0]
