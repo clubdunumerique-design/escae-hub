@@ -1,11 +1,17 @@
 import { z } from "zod";
 
 export const STUDENT_MATRICULE_PATTERN = /^ETU-\d{4}-\d{4}$/i;
-export const studentMatriculeSchema = z
-  .string()
-  .trim()
-  .regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024).")
-  .transform((value) => value.toUpperCase());
+export function normalizeStudentMatricule(value: string): string {
+  return value
+    .replace(/[‐‑‒–—―−－]/g, "-")
+    .replace(/[\s\u200B-\u200D\uFEFF]+/g, "")
+    .toUpperCase();
+}
+
+export const studentMatriculeSchema = z.preprocess(
+  (value) => typeof value === "string" ? normalizeStudentMatricule(value) : value,
+  z.string().regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024)."),
+);
 
 export const loginSchema = z.object({
   email: z.string().email("Veuillez entrer une adresse e-mail valide."),

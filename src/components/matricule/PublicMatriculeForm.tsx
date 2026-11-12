@@ -208,6 +208,12 @@ export function PublicMatriculeForm({ universities }: { universities: University
           pattern="ETU-[0-9]{4}-[0-9]{4}"
           title="Format attendu : ETU-AAAA-NNNN (ex. ETU-2026-0024)"
           maxLength={13}
+          onChange={(event) => {
+            event.currentTarget.value = event.currentTarget.value
+              .replace(/[‐‑‒–—―−－]/g, "-")
+              .replace(/[\s\u200B-\u200D\uFEFF]+/g, "")
+              .toUpperCase();
+          }}
           disabled={isPending}
           className={`${inputClass} font-mono tracking-wider uppercase`}
         />

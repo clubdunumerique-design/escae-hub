@@ -123,7 +123,13 @@ export function RegisterForm({ universities }: RegisterFormProps) {
           maxLength={13}
           required
           value={prefill.studentId}
-          onChange={(event) => setPrefill((value) => ({ ...value, studentId: event.target.value.toUpperCase() }))}
+          onChange={(event) => setPrefill((value) => ({
+            ...value,
+            studentId: event.target.value
+              .replace(/[‐‑‒–—―−－]/g, "-")
+              .replace(/[\s\u200B-\u200D\uFEFF]+/g, "")
+              .toUpperCase(),
+          }))}
           className={inputClass}
         />
         <p className="mt-1 text-[11px] text-white/35">

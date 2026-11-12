@@ -16,7 +16,7 @@ import { claimCollectedMatricule } from "@/lib/matricule/auto-claim";
 import { createHmac } from "node:crypto";
 import { headers } from "next/headers";
 import nodemailer from "nodemailer";
-import { STUDENT_MATRICULE_PATTERN } from "@/lib/validations/auth";
+import { STUDENT_MATRICULE_PATTERN, studentMatriculeSchema } from "@/lib/validations/auth";
 
 // ---------------------------------------------------------------------------
 // Schémas de validation
@@ -34,7 +34,7 @@ const publicMatriculeSubmissionSchema = z.object({
     .max(60, "Le nom est trop long.")
     .trim(),
   universityId: z.string().uuid("Veuillez choisir une université."),
-  matricule: z.string().trim().regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024)."),
+  matricule: studentMatriculeSchema,
   email: z.string().email("Adresse email invalide.").trim().toLowerCase()
     .refine((value) => value.endsWith("@gmail.com"), "Veuillez utiliser une adresse Gmail."),
   fieldOfStudy: z.string().max(100).optional(),
@@ -51,7 +51,7 @@ const manualAddMatriculeSchema = z.object({
   universityId: z.string().uuid("Veuillez choisir une université."),
   firstName: z.string().min(2).max(60).trim(),
   lastName: z.string().min(2).max(60).trim(),
-  matricule: z.string().trim().regex(STUDENT_MATRICULE_PATTERN, "Format invalide. Utilisez ETU-AAAA-NNNN (ex. ETU-2026-0024)."),
+  matricule: studentMatriculeSchema,
   email: z.string().email().trim().toLowerCase(),
   fieldOfStudy: z.string().max(100).optional(),
   academicLevel: z.string().max(50).optional(),
@@ -176,7 +176,7 @@ export async function submitStudentMatriculeAction(
   }
 
   const { firstName, lastName, email, universityId, fieldOfStudy, academicLevel } = parsed.data;
-  const normalizedMatricule = parsed.data.matricule.toUpperCase().trim();
+  const normalizedMatricule = parsed.data.matricule;
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
   const adminClient = createSupabaseAdminClient();
@@ -806,7 +806,7 @@ export async function createOfficialMatriculeAction(
   }
 
   const { universityId, firstName, lastName, email, fieldOfStudy, academicLevel, verificationStatus } = parsed.data;
-  const normalizedMatricule = parsed.data.matricule.toUpperCase().trim();
+  const normalizedMatricule = parsed.data.matricule;
   const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
   const adminClient = createSupabaseAdminClient();
